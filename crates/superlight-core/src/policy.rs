@@ -1,4 +1,8 @@
-use crate::{actions::{Action, Platform}, config, gesture, hidpp::{ScrollMode, SmartShift}};
+use crate::{
+    actions::{Action, Platform},
+    config, gesture,
+    hidpp::{ScrollMode, SmartShift},
+};
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug)]
@@ -15,18 +19,29 @@ pub struct Policy {
 impl Default for Policy {
     fn default() -> Self {
         Self {
-            mappings: [Action::None; 12], paused: true,
-            invert_vertical: false, invert_horizontal: false,
-            ignore_trackpad: true, horizontal_threshold: 1.0,
+            mappings: [Action::None; 12],
+            paused: true,
+            invert_vertical: false,
+            invert_horizontal: false,
+            ignore_trackpad: true,
+            horizontal_threshold: 1.0,
             gestures: gesture::Options::default(),
         }
     }
 }
 
 impl Policy {
-    pub fn compile(value: &Value, profile: &str, platform: Platform, paused: bool) -> Result<Self, String> {
-        let mappings = value["profiles"].get(profile).or_else(|| value["profiles"].get("default"))
-            .and_then(|profile| profile["mappings"].as_object()).ok_or("Missing profile mappings")?;
+    pub fn compile(
+        value: &Value,
+        profile: &str,
+        platform: Platform,
+        paused: bool,
+    ) -> Result<Self, String> {
+        let mappings = value["profiles"]
+            .get(profile)
+            .or_else(|| value["profiles"].get("default"))
+            .and_then(|profile| profile["mappings"].as_object())
+            .ok_or("Missing profile mappings")?;
         let mut policy = Self {
             paused,
             invert_vertical: boolean(value, "invert_vscroll", false),
@@ -41,7 +56,10 @@ impl Policy {
             }
         }
         policy.gestures = gesture::Options {
-            enabled: !paused && policy.mappings[8..].iter().any(|action| *action != Action::None),
+            enabled: !paused
+                && policy.mappings[8..]
+                    .iter()
+                    .any(|action| *action != Action::None),
             threshold: number(value, "gesture_threshold", 50.0).clamp(5.0, 100_000.0),
             deadzone: number(value, "gesture_deadzone", 40.0).clamp(0.0, 100_000.0),
             timeout_ms: number(value, "gesture_timeout_ms", 3000.0).clamp(250.0, 60_000.0) as u64,
@@ -52,12 +70,19 @@ impl Policy {
     }
 
     pub fn action(&self, index: usize) -> Action {
-        if self.paused { Action::None } else { self.mappings.get(index).copied().unwrap_or_default() }
+        if self.paused {
+            Action::None
+        } else {
+            self.mappings.get(index).copied().unwrap_or_default()
+        }
     }
 }
 
 pub fn number(value: &Value, name: &str, default: f64) -> f64 {
-    value["settings"][name].as_f64().filter(|value| value.is_finite()).unwrap_or(default)
+    value["settings"][name]
+        .as_f64()
+        .filter(|value| value.is_finite())
+        .unwrap_or(default)
 }
 
 pub fn boolean(value: &Value, name: &str, default: bool) -> bool {
@@ -66,7 +91,11 @@ pub fn boolean(value: &Value, name: &str, default: bool) -> bool {
 
 pub fn smart_shift(value: &Value) -> SmartShift {
     SmartShift {
-        mode: if value["settings"]["smart_shift_mode"] == "freespin" { ScrollMode::Freespin } else { ScrollMode::Ratchet },
+        mode: if value["settings"]["smart_shift_mode"] == "freespin" {
+            ScrollMode::Freespin
+        } else {
+            ScrollMode::Ratchet
+        },
         enabled: boolean(value, "smart_shift_enabled", false),
         threshold: number(value, "smart_shift_threshold", 25.0).clamp(1.0, 50.0) as u8,
     }
@@ -74,12 +103,20 @@ pub fn smart_shift(value: &Value) -> SmartShift {
 
 pub fn needs_divert(value: &Value, button: &str) -> bool {
     value["profiles"].as_object().is_some_and(|profiles| {
-        profiles.values().any(|profile| profile["mappings"][button].as_str().is_some_and(|action| action != "none" && !action.is_empty()))
+        profiles.values().any(|profile| {
+            profile["mappings"][button]
+                .as_str()
+                .is_some_and(|action| action != "none" && !action.is_empty())
+        })
     })
 }
 
 pub fn validate_actions(value: &Value, platform: Platform) -> Result<(), String> {
-    for name in value["profiles"].as_object().ok_or("Missing profiles")?.keys() {
+    for name in value["profiles"]
+        .as_object()
+        .ok_or("Missing profiles")?
+        .keys()
+    {
         Policy::compile(value, name, platform, false)?;
     }
     Ok(())
@@ -102,8 +139,11 @@ mod tests {
 
     #[test]
     fn pause_and_invalid_button_are_pass_through() {
-        let policy = Policy::compile(&config::defaults(), "default", Platform::MacOs, true).unwrap();
-        for index in 0..100 { assert_eq!(policy.action(index), Action::None); }
+        let policy =
+            Policy::compile(&config::defaults(), "default", Platform::MacOs, true).unwrap();
+        for index in 0..100 {
+            assert_eq!(policy.action(index), Action::None);
+        }
     }
 
     #[test]

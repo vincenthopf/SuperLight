@@ -8,8 +8,13 @@ pub const PROTOCOL_VERSION: u8 = 1;
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum Request {
     Get,
-    Apply { expected_revision: u64, config: Value },
-    SetPaused { value: bool },
+    Apply {
+        expected_revision: u64,
+        config: Value,
+    },
+    SetPaused {
+        value: bool,
+    },
     Reconnect,
     RefreshHardware,
     RequestPermissions,
@@ -84,13 +89,20 @@ pub struct Response {
 
 impl Response {
     pub fn success(snapshot: Snapshot) -> Self {
-        Self { protocol: PROTOCOL_VERSION, ok: true, error: None, snapshot: Some(snapshot) }
+        Self {
+            protocol: PROTOCOL_VERSION,
+            ok: true,
+            error: None,
+            snapshot: Some(snapshot),
+        }
     }
 
     pub fn failure(error: impl ToString) -> Self {
         Self {
-            protocol: PROTOCOL_VERSION, ok: false,
-            error: Some(error.to_string().chars().take(1024).collect()), snapshot: None,
+            protocol: PROTOCOL_VERSION,
+            ok: false,
+            error: Some(error.to_string().chars().take(1024).collect()),
+            snapshot: None,
         }
     }
 }

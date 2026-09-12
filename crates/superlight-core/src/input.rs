@@ -6,7 +6,11 @@ pub const INVERT_MARKER: i64 = 0x4d4f5553;
 pub const HOLD_WATCHDOG_MS: u64 = 20_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Phase { Down, Up, Tap }
+pub enum Phase {
+    Down,
+    Up,
+    Tap,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Dispatch {
@@ -16,25 +20,67 @@ pub struct Dispatch {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Decision { Pass, Block, BlockAndReleaseAll }
+pub enum Decision {
+    Pass,
+    Block,
+    BlockAndReleaseAll,
+}
+
+#[derive(Clone, Copy)]
+enum Capture {
+    Active(Action),
+    Cancelled,
+}
 
 #[derive(Default)]
 pub struct Router {
-    captured: [Option<Action>; SOURCE_COUNT],
+    captured: [Option<Capture>; SOURCE_COUNT],
 }
 
 impl Router {
-    pub fn route(&mut self, source: usize, down: bool, action: Action, mut emit: impl FnMut(Dispatch) -> bool) -> Decision {
-        let Some(slot) = self.captured.get_mut(source) else { return Decision::Pass; };
+    pub fn route(
+        &mut self,
+        source: usize,
+        down: bool,
+        action: Action,
+        mut emit: impl FnMut(Dispatch) -> bool,
+    ) -> Decision {
+        let Some(slot) = self.captured.get_mut(source) else {
+            return Decision::Pass;
+        };
         if down {
-            if slot.is_some() { return Decision::Block; }
-            if action == Action::None { return Decision::Pass; }
-            let phase = if matches!(action, Action::Mouse(_)) { Phase::Down } else { Phase::Tap };
-            if !emit(Dispatch { source: source as u8, action, phase }) { return Decision::Pass; }
-            *slot = Some(action);
+            if matches!(slot, Some(Capture::Active(_))) {
+                return Decision::Block;
+            }
+            *slot = None;
+            if action == Action::None {
+                return Decision::Pass;
+            }
+            let phase = if matches!(action, Action::Mouse(_)) {
+                Phase::Down
+            } else {
+                Phase::Tap
+            };
+            if !emit(Dispatch {
+                source: source as u8,
+                action,
+                phase,
+            }) {
+                return Decision::Pass;
+            }
+            *slot = Some(Capture::Active(action));
             Decision::Block
         } else if let Some(captured) = slot.take() {
-            if matches!(captured, Action::Mouse(_)) && !emit(Dispatch { source: source as u8, action: captured, phase: Phase::Up }) {
+            let Capture::Active(captured) = captured else {
+                return Decision::Block;
+            };
+            if matches!(captured, Action::Mouse(_))
+                && !emit(Dispatch {
+                    source: source as u8,
+                    action: captured,
+                    phase: Phase::Up,
+                })
+            {
                 Decision::BlockAndReleaseAll
             } else {
                 Decision::Block
@@ -44,8 +90,19 @@ impl Router {
         }
     }
 
+    pub fn cancel(&mut self) {
+        for slot in &mut self.captured {
+            if slot.is_some() {
+                *slot = Some(Capture::Cancelled);
+            }
+        }
+    }
+
     pub fn captured_mouse(&self, source: usize) -> Option<u8> {
-        match self.captured.get(source).copied().flatten() { Some(Action::Mouse(button)) => Some(button), _ => None }
+        match self.captured.get(source).copied().flatten() {
+            Some(Capture::Active(Action::Mouse(button))) => Some(button),
+            _ => None,
+        }
     }
 }
 
@@ -57,7 +114,12 @@ pub struct HeldButtons {
 
 impl HeldButtons {
     pub fn press(&mut self, source: usize, button: u8, now_ms: u64) -> bool {
-        if source >= SOURCE_COUNT || usize::from(button) >= self.counts.len() || self.sources[source].is_some() { return false; }
+        if source >= SOURCE_COUNT
+            || usize::from(button) >= self.counts.len()
+            || self.sources[source].is_some()
+        {
+            return false;
+        }
         self.sources[source] = Some((button, now_ms));
         let count = &mut self.counts[usize::from(button)];
         *count += 1;
@@ -81,13 +143,19 @@ impl HeldButtons {
     pub fn expire(&mut self, now_ms: u64) -> [bool; 5] {
         let mut released = [false; 5];
         for source in 0..SOURCE_COUNT {
-            if self.sources[source].is_some_and(|(_, since)| now_ms.saturating_sub(since) >= HOLD_WATCHDOG_MS)
-                && let Some(button) = self.release(source) { released[usize::from(button)] = true; }
+            if self.sources[source]
+                .is_some_and(|(_, since)| now_ms.saturating_sub(since) >= HOLD_WATCHDOG_MS)
+                && let Some(button) = self.release(source)
+            {
+                released[usize::from(button)] = true;
+            }
         }
         released
     }
 
-    pub fn any(&self) -> bool { self.counts.iter().any(|count| *count != 0) }
+    pub fn any(&self) -> bool {
+        self.counts.iter().any(|count| *count != 0)
+    }
 }
 
 #[cfg(test)]
@@ -95,11 +163,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cancelled_capture_blocks_orphan_release_but_accepts_a_new_press() {
+        let mut router = Router::default();
+        router.route(0, true, Action::Mouse(0), |_| true);
+        router.cancel();
+        assert_eq!(router.captured_mouse(0), None);
+        assert_eq!(
+            router.route(0, false, Action::None, |_| panic!()),
+            Decision::Block
+        );
+        router.route(0, true, Action::Mouse(0), |_| true);
+        router.cancel();
+        let mut events = Vec::new();
+        assert_eq!(
+            router.route(0, true, Action::Mouse(1), |event| {
+                events.push(event);
+                true
+            }),
+            Decision::Block
+        );
+        assert_eq!(events[0].action, Action::Mouse(1));
+    }
+
+    #[test]
     fn profile_change_cannot_release_a_different_mouse_button() {
         let mut router = Router::default();
         let mut events = Vec::new();
-        assert_eq!(router.route(2, true, Action::Mouse(0), |event| { events.push(event); true }), Decision::Block);
-        assert_eq!(router.route(2, false, Action::Mouse(1), |event| { events.push(event); true }), Decision::Block);
+        assert_eq!(
+            router.route(2, true, Action::Mouse(0), |event| {
+                events.push(event);
+                true
+            }),
+            Decision::Block
+        );
+        assert_eq!(
+            router.route(2, false, Action::Mouse(1), |event| {
+                events.push(event);
+                true
+            }),
+            Decision::Block
+        );
         assert_eq!(events[0].action, Action::Mouse(0));
         assert_eq!(events[1].action, Action::Mouse(0));
         assert_eq!(events[1].phase, Phase::Up);
@@ -108,23 +211,41 @@ mod tests {
     #[test]
     fn failed_press_fails_open_and_does_not_swallow_release() {
         let mut router = Router::default();
-        assert_eq!(router.route(2, true, Action::Mouse(0), |_| false), Decision::Pass);
-        assert_eq!(router.route(2, false, Action::Mouse(0), |_| panic!()), Decision::Pass);
+        assert_eq!(
+            router.route(2, true, Action::Mouse(0), |_| false),
+            Decision::Pass
+        );
+        assert_eq!(
+            router.route(2, false, Action::Mouse(0), |_| panic!()),
+            Decision::Pass
+        );
     }
 
     #[test]
     fn failed_release_requires_emergency_cleanup() {
         let mut router = Router::default();
-        assert_eq!(router.route(0, true, Action::Mouse(0), |_| true), Decision::Block);
-        assert_eq!(router.route(0, false, Action::None, |_| false), Decision::BlockAndReleaseAll);
+        assert_eq!(
+            router.route(0, true, Action::Mouse(0), |_| true),
+            Decision::Block
+        );
+        assert_eq!(
+            router.route(0, false, Action::None, |_| false),
+            Decision::BlockAndReleaseAll
+        );
     }
 
     #[test]
     fn pausing_preserves_the_pairing_of_captured_releases() {
         let mut router = Router::default();
         router.route(0, true, Action::Mouse(0), |_| true);
-        assert_eq!(router.route(0, false, Action::None, |_| true), Decision::Block);
-        assert_eq!(router.route(0, true, Action::None, |_| panic!()), Decision::Pass);
+        assert_eq!(
+            router.route(0, false, Action::None, |_| true),
+            Decision::Block
+        );
+        assert_eq!(
+            router.route(0, true, Action::None, |_| panic!()),
+            Decision::Pass
+        );
     }
 
     #[test]

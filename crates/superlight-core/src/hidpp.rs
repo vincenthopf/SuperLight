@@ -51,18 +51,31 @@ pub struct Message<'a> {
 }
 
 pub fn parse(raw: &[u8]) -> Option<Message<'_>> {
-    if raw.len() < 4 || raw.len() > 64 { return None; }
+    if raw.len() < 4 || raw.len() > 64 {
+        return None;
+    }
     let offset = usize::from(matches!(raw[0], SHORT_ID | LONG_ID));
     Some(Message {
-        device: raw[offset], feature: raw[offset + 1],
-        function: raw[offset + 2] >> 4, software: raw[offset + 2] & 15,
+        device: raw[offset],
+        feature: raw[offset + 1],
+        function: raw[offset + 2] >> 4,
+        software: raw[offset + 2] & 15,
         params: &raw[offset + 3..],
     })
 }
 
-pub fn encode(device: u8, feature: u8, function: u8, params: &[u8]) -> Result<[u8; LONG_LEN], ProtocolError> {
-    if params.len() > 16 { return Err(ProtocolError::TooManyParameters); }
-    if function > 15 { return Err(ProtocolError::InvalidFunction); }
+pub fn encode(
+    device: u8,
+    feature: u8,
+    function: u8,
+    params: &[u8],
+) -> Result<[u8; LONG_LEN], ProtocolError> {
+    if params.len() > 16 {
+        return Err(ProtocolError::TooManyParameters);
+    }
+    if function > 15 {
+        return Err(ProtocolError::InvalidFunction);
+    }
     let mut report = [0; LONG_LEN];
     report[..4].copy_from_slice(&[LONG_ID, device, feature, function << 4 | SOFTWARE]);
     report[4..4 + params.len()].copy_from_slice(params);
@@ -70,26 +83,47 @@ pub fn encode(device: u8, feature: u8, function: u8, params: &[u8]) -> Result<[u
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ResponseMatch { Reply, Error(u8), Unrelated }
+pub enum ResponseMatch {
+    Reply,
+    Error(u8),
+    Unrelated,
+}
 
-pub fn match_response(message: Message<'_>, device: u8, feature: u8, function: u8) -> ResponseMatch {
-    if function > 15 || message.device != device { return ResponseMatch::Unrelated; }
+pub fn match_response(
+    message: Message<'_>,
+    device: u8,
+    feature: u8,
+    function: u8,
+) -> ResponseMatch {
+    if function > 15 || message.device != device {
+        return ResponseMatch::Unrelated;
+    }
     if matches!(message.feature, 0xff | 0x8f) {
         let echoed_feature = message.function << 4 | message.software;
-        if echoed_feature == feature && message.params.len() >= 2 && message.params[0] == (function << 4 | SOFTWARE) {
+        if echoed_feature == feature
+            && message.params.len() >= 2
+            && message.params[0] == (function << 4 | SOFTWARE)
+        {
             return ResponseMatch::Error(message.params[1]);
         }
         return ResponseMatch::Unrelated;
     }
-    if message.feature == feature && message.software == SOFTWARE
-        && (message.function == function || message.function == ((function + 1) & 15)) {
+    if message.feature == feature
+        && message.software == SOFTWARE
+        && (message.function == function || message.function == ((function + 1) & 15))
+    {
         ResponseMatch::Reply
-    } else { ResponseMatch::Unrelated }
+    } else {
+        ResponseMatch::Unrelated
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum ScrollMode { Ratchet, Freespin }
+pub enum ScrollMode {
+    Ratchet,
+    Freespin,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SmartShift {
@@ -99,22 +133,37 @@ pub struct SmartShift {
 }
 
 impl Default for SmartShift {
-    fn default() -> Self { Self { mode: ScrollMode::Ratchet, enabled: false, threshold: 25 } }
+    fn default() -> Self {
+        Self {
+            mode: ScrollMode::Ratchet,
+            enabled: false,
+            threshold: 25,
+        }
+    }
 }
 
 impl SmartShift {
     pub fn decode(mode: u8, auto_disengage: u8) -> Self {
         let valid = (1..=50).contains(&auto_disengage);
         Self {
-            mode: if mode == 1 { ScrollMode::Freespin } else { ScrollMode::Ratchet },
-            enabled: mode != 1 && valid, threshold: if valid { auto_disengage } else { 25 },
+            mode: if mode == 1 {
+                ScrollMode::Freespin
+            } else {
+                ScrollMode::Ratchet
+            },
+            enabled: mode != 1 && valid,
+            threshold: if valid { auto_disengage } else { 25 },
         }
     }
 
     pub fn parameters(mode: ScrollMode, enabled: bool, threshold: i64) -> [u8; 3] {
-        if enabled { [2, threshold.clamp(1, 50) as u8, 0] }
-        else if mode == ScrollMode::Freespin { [1, 0, 0] }
-        else { [2, 255, 0] }
+        if enabled {
+            [2, threshold.clamp(1, 50) as u8, 0]
+        } else if mode == ScrollMode::Freespin {
+            [1, 0, 0]
+        } else {
+            [2, 255, 0]
+        }
     }
 
     pub fn wire_parameters(self) -> [u8; 3] {
@@ -122,7 +171,10 @@ impl SmartShift {
     }
 
     pub fn switch_mode(&mut self) {
-        self.mode = match self.mode { ScrollMode::Ratchet => ScrollMode::Freespin, ScrollMode::Freespin => ScrollMode::Ratchet };
+        self.mode = match self.mode {
+            ScrollMode::Ratchet => ScrollMode::Freespin,
+            ScrollMode::Freespin => ScrollMode::Ratchet,
+        };
         self.enabled = false;
     }
 }
@@ -140,49 +192,95 @@ pub struct Control {
 
 impl Control {
     pub fn decode(index: u8, params: &[u8]) -> Option<Self> {
-        if params.len() < 9 { return None; }
+        if params.len() < 9 {
+            return None;
+        }
         let cid = u16::from_be_bytes([params[0], params[1]]);
         Some(Self {
-            index, cid, task: u16::from_be_bytes([params[2], params[3]]),
-            flags: u16::from_le_bytes([params[4], params[8]]), mapping_flags: 0, mapped_to: cid,
+            index,
+            cid,
+            task: u16::from_be_bytes([params[2], params[3]]),
+            flags: u16::from_le_bytes([params[4], params[8]]),
+            mapping_flags: 0,
+            mapped_to: cid,
         })
     }
 
     pub fn apply_reporting(&mut self, params: &[u8]) {
-        if params.len() < 5 { return; }
+        if params.len() < 5 {
+            return;
+        }
         self.mapping_flags = u16::from_le_bytes([params[2], params.get(5).copied().unwrap_or(0)]);
         let mapped = u16::from_be_bytes([params[3], params[4]]);
         let original = u16::from_be_bytes([params[0], params[1]]);
-        self.mapped_to = if mapped != 0 { mapped } else if original != 0 { original } else { self.cid };
+        self.mapped_to = if mapped != 0 {
+            mapped
+        } else if original != 0 {
+            original
+        } else {
+            self.cid
+        };
     }
 }
 
 pub fn gesture_candidates(controls: &[Control], preferred: &[u16]) -> Vec<u16> {
-    let preferred = if preferred.is_empty() { &GESTURE_CIDS } else { preferred };
+    let preferred = if preferred.is_empty() {
+        &GESTURE_CIDS
+    } else {
+        preferred
+    };
     let mut result = Vec::with_capacity(MAX_CONTROLS);
     for &cid in preferred {
-        if controls.iter().any(|c| c.cid == cid) && !result.contains(&cid) { result.push(cid); }
+        if controls.iter().any(|c| c.cid == cid) && !result.contains(&cid) {
+            result.push(cid);
+        }
     }
     for control in controls.iter().take(MAX_CONTROLS) {
         let raw_xy = control.flags & 0x0300 != 0 || control.mapping_flags & 0x0050 != 0;
         let virtual_gesture = control.flags & 0x0080 != 0 || GESTURE_CIDS.contains(&control.cid);
-        if raw_xy && virtual_gesture && control.flags & 0x0020 != 0 && !result.contains(&control.cid) { result.push(control.cid); }
+        if raw_xy
+            && virtual_gesture
+            && control.flags & 0x0020 != 0
+            && !result.contains(&control.cid)
+        {
+            result.push(control.cid);
+        }
     }
-    if result.is_empty() { preferred.to_vec() } else { result }
+    if result.is_empty() {
+        preferred.to_vec()
+    } else {
+        result
+    }
 }
 
 pub fn signed_xy(params: &[u8]) -> Option<(i16, i16)> {
-    if params.len() < 4 { return None; }
-    Some((i16::from_be_bytes([params[0], params[1]]), i16::from_be_bytes([params[2], params[3]])))
+    if params.len() < 4 {
+        return None;
+    }
+    Some((
+        i16::from_be_bytes([params[0], params[1]]),
+        i16::from_be_bytes([params[2], params[3]]),
+    ))
 }
 
 pub fn contains_cid(params: &[u8], cid: u16) -> bool {
-    params.as_chunks::<2>().0.iter()
-        .map(|pair| u16::from_be_bytes(*pair)).take_while(|value| *value != 0).any(|value| value == cid)
+    params
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_be_bytes(*pair))
+        .take_while(|value| *value != 0)
+        .any(|value| value == cid)
 }
 
 pub fn transport_label(device_index: u8, product_id: u16) -> &'static str {
-    if device_index == 255 { "Bluetooth" } else if product_id == 0xc548 { "Logi Bolt" } else { "USB Receiver" }
+    if device_index == 255 {
+        "Bluetooth"
+    } else if product_id == 0xc548 {
+        "Logi Bolt"
+    } else {
+        "USB Receiver"
+    }
 }
 
 #[cfg(test)]
@@ -199,7 +297,10 @@ mod tests {
 
     #[test]
     fn rejects_truncating_writes() {
-        assert_eq!(encode(255, 0, 0, &[1; 17]), Err(ProtocolError::TooManyParameters));
+        assert_eq!(
+            encode(255, 0, 0, &[1; 17]),
+            Err(ProtocolError::TooManyParameters)
+        );
         assert_eq!(encode(255, 0, 16, &[]), Err(ProtocolError::InvalidFunction));
     }
 
@@ -207,7 +308,9 @@ mod tests {
     fn supports_id_and_idless_reads() {
         let packet = encode(255, 5, 4, &[1, 2, 3]).unwrap();
         assert_eq!(parse(&packet), parse(&packet[1..]));
-        for len in 0..4 { assert!(parse(&packet[..len]).is_none()); }
+        for len in 0..4 {
+            assert!(parse(&packet[..len]).is_none());
+        }
         assert!(parse(&[0; 65]).is_none());
     }
 
@@ -216,44 +319,87 @@ mod tests {
         for function in 0..16 {
             let normal = encode(255, 3, function, &[]).unwrap();
             let adjacent = encode(255, 3, (function + 1) & 15, &[]).unwrap();
-            assert_eq!(match_response(parse(&normal).unwrap(), 255, 3, function), ResponseMatch::Reply);
-            assert_eq!(match_response(parse(&adjacent).unwrap(), 255, 3, function), ResponseMatch::Reply);
+            assert_eq!(
+                match_response(parse(&normal).unwrap(), 255, 3, function),
+                ResponseMatch::Reply
+            );
+            assert_eq!(
+                match_response(parse(&adjacent).unwrap(), 255, 3, function),
+                ResponseMatch::Reply
+            );
         }
         let packet = encode(255, 3, 0, &[]).unwrap();
-        assert_eq!(match_response(parse(&packet).unwrap(), 255, 3, 255), ResponseMatch::Unrelated);
+        assert_eq!(
+            match_response(parse(&packet).unwrap(), 255, 3, 255),
+            ResponseMatch::Unrelated
+        );
     }
 
     #[test]
     fn other_slots_and_software_cannot_complete_requests() {
         let packet = encode(2, 3, 1, &[]).unwrap();
-        assert_eq!(match_response(parse(&packet).unwrap(), 1, 3, 1), ResponseMatch::Unrelated);
+        assert_eq!(
+            match_response(parse(&packet).unwrap(), 1, 3, 1),
+            ResponseMatch::Unrelated
+        );
         let notification = [17, 1, 3, 16, 0, 0];
-        assert_eq!(match_response(parse(&notification).unwrap(), 1, 3, 1), ResponseMatch::Unrelated);
+        assert_eq!(
+            match_response(parse(&notification).unwrap(), 1, 3, 1),
+            ResponseMatch::Unrelated
+        );
     }
 
     #[test]
     fn unrelated_errors_are_not_request_failures() {
         let error = [17, 1, 255, 9, 42, 7];
-        assert_eq!(match_response(parse(&error).unwrap(), 1, 9, 2), ResponseMatch::Error(7));
-        assert_eq!(match_response(parse(&error).unwrap(), 2, 9, 2), ResponseMatch::Unrelated);
-        assert_eq!(match_response(parse(&error).unwrap(), 1, 8, 2), ResponseMatch::Unrelated);
-        assert_eq!(match_response(parse(&error).unwrap(), 1, 9, 3), ResponseMatch::Unrelated);
+        assert_eq!(
+            match_response(parse(&error).unwrap(), 1, 9, 2),
+            ResponseMatch::Error(7)
+        );
+        assert_eq!(
+            match_response(parse(&error).unwrap(), 2, 9, 2),
+            ResponseMatch::Unrelated
+        );
+        assert_eq!(
+            match_response(parse(&error).unwrap(), 1, 8, 2),
+            ResponseMatch::Unrelated
+        );
+        assert_eq!(
+            match_response(parse(&error).unwrap(), 1, 9, 3),
+            ResponseMatch::Unrelated
+        );
     }
 
     #[test]
     fn freespin_never_enables_smart_shift() {
-        for threshold in 0..=255 { assert!(!SmartShift::decode(1, threshold).enabled); }
+        for threshold in 0..=255 {
+            assert!(!SmartShift::decode(1, threshold).enabled);
+        }
         assert!(SmartShift::decode(2, 1).enabled);
         assert!(SmartShift::decode(2, 50).enabled);
         assert!(!SmartShift::decode(2, 51).enabled);
-        assert_eq!(SmartShift::parameters(ScrollMode::Ratchet, false, 25), [2, 255, 0]);
+        assert_eq!(
+            SmartShift::parameters(ScrollMode::Ratchet, false, 25),
+            [2, 255, 0]
+        );
     }
 
     #[test]
     fn mode_switch_keeps_threshold_and_disables_auto() {
-        let mut state = SmartShift { mode: ScrollMode::Ratchet, enabled: true, threshold: 37 };
+        let mut state = SmartShift {
+            mode: ScrollMode::Ratchet,
+            enabled: true,
+            threshold: 37,
+        };
         state.switch_mode();
-        assert_eq!(state, SmartShift { mode: ScrollMode::Freespin, enabled: false, threshold: 37 });
+        assert_eq!(
+            state,
+            SmartShift {
+                mode: ScrollMode::Freespin,
+                enabled: false,
+                threshold: 37
+            }
+        );
     }
 
     #[test]
@@ -282,9 +428,24 @@ mod tests {
 
     #[test]
     fn gesture_preference_and_capability_fallback() {
-        let controls = [Control { cid: 215, flags: 944, ..Control::default() }, Control { cid: 195, flags: 304, ..Control::default() }];
+        let controls = [
+            Control {
+                cid: 215,
+                flags: 944,
+                ..Control::default()
+            },
+            Control {
+                cid: 195,
+                flags: 304,
+                ..Control::default()
+            },
+        ];
         assert_eq!(gesture_candidates(&controls, &[]), [195, 215]);
-        let controls = [Control { cid: 241, flags: 432, ..Control::default() }];
+        let controls = [Control {
+            cid: 241,
+            flags: 432,
+            ..Control::default()
+        }];
         assert_eq!(gesture_candidates(&controls, &[]), [241]);
         assert_eq!(gesture_candidates(&[], &[]), [195, 215]);
     }

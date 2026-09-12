@@ -7,20 +7,28 @@ pub struct BoundedQueue<T: Copy, const N: usize> {
 
 impl<T: Copy, const N: usize> Default for BoundedQueue<T, N> {
     fn default() -> Self {
-        Self { items: [None; N], head: 0, len: 0 }
+        Self {
+            items: [None; N],
+            head: 0,
+            len: 0,
+        }
     }
 }
 
 impl<T: Copy, const N: usize> BoundedQueue<T, N> {
     pub fn push(&mut self, item: T) -> Result<(), T> {
-        if self.len == N { return Err(item); }
+        if self.len == N {
+            return Err(item);
+        }
         self.items[(self.head + self.len) % N] = Some(item);
         self.len += 1;
         Ok(())
     }
 
     pub fn pop(&mut self) -> Option<T> {
-        if self.len == 0 { return None; }
+        if self.len == 0 {
+            return None;
+        }
         let item = self.items[self.head].take();
         self.head = (self.head + 1) % N;
         self.len -= 1;
@@ -33,9 +41,15 @@ impl<T: Copy, const N: usize> BoundedQueue<T, N> {
         self.len = 0;
     }
 
-    pub fn len(&self) -> usize { self.len }
-    pub fn is_empty(&self) -> bool { self.len == 0 }
-    pub const fn capacity(&self) -> usize { N }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+    pub const fn capacity(&self) -> usize {
+        N
+    }
 }
 
 #[cfg(test)]
