@@ -174,6 +174,7 @@ impl Controller {
             }
             if last_poll.elapsed() >= interval {
                 self.refresh_foreground();
+                if !self.shared.headless { native::post(native::UiEvent::Refresh); }
                 if let Some(child) = self.ui.as_mut() && matches!(child.try_wait(), Ok(Some(_))) { self.ui = None; }
                 last_poll = Instant::now();
             }
