@@ -80,10 +80,10 @@ pub fn filter(
         match event.event_type() {
             EventType::SYNCHRONIZATION => {}
             EventType::KEY => {
-                if let Some(source) = button_source(event.code()) {
-                    if event.value() == 2 || hook.button(source, event.value() != 0) {
-                        continue;
-                    }
+                if let Some(source) = button_source(event.code())
+                    && (event.value() == 2 || hook.button(source, event.value() != 0))
+                {
+                    continue;
                 }
                 output.push(*event)?;
             }

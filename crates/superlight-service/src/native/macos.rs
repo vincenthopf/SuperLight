@@ -730,15 +730,14 @@ impl Native {
                 "Allow SuperLight in System Settings > Privacy & Security > Accessibility and Input Monitoring. Restart SuperLight after changing permissions if the event tap remains unavailable.".into()
             },
         };
-        if self.last_permissions.as_ref() != Some(&permissions)
-            || shared.native_ready.load(Ordering::Acquire) != ready
-        {
-            if shared.command(Command::Native {
+        if (self.last_permissions.as_ref() != Some(&permissions)
+            || shared.native_ready.load(Ordering::Acquire) != ready)
+            && shared.command(Command::Native {
                 ready,
                 permissions: permissions.clone(),
-            }) {
-                self.last_permissions = Some(permissions);
-            }
+            })
+        {
+            self.last_permissions = Some(permissions);
         }
         unsafe {
             msg1::<_, ()>(

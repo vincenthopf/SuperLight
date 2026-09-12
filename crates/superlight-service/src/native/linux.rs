@@ -412,7 +412,7 @@ pub fn set_start_at_login(enabled: bool, executable: &Path) -> io::Result<()> {
         std::fs::create_dir_all(&directory)?;
         let content = format!(
             "[Desktop Entry]\nType=Application\nName=SuperLight\nExec={} --background\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
-            desktop_exec(&executable)
+            desktop_exec(executable)
         );
         atomic_write(&path, content.as_bytes()).map(|_| ())
     } else {

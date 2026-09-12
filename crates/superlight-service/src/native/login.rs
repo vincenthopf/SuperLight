@@ -1,5 +1,6 @@
 use std::io;
 
+#[cfg(any(target_os = "macos", test))]
 pub fn xml(value: &str) -> String {
     value
         .replace('&', "&amp;")

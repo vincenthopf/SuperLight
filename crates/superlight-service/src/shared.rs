@@ -92,12 +92,10 @@ pub struct Shared {
     sleep: (Mutex<()>, Condvar),
 }
 
+pub type SharedChannels = (Arc<Shared>, Receiver<QueuedInput>, Receiver<Command>);
+
 impl Shared {
-    pub fn new(
-        value: Value,
-        instance: String,
-        headless: bool,
-    ) -> Result<(Arc<Self>, Receiver<QueuedInput>, Receiver<Command>), String> {
+    pub fn new(value: Value, instance: String, headless: bool) -> Result<SharedChannels, String> {
         let policy = Policy::compile(&value, "default", Platform::current(), false)?;
         let (input, input_receiver) = bounded(INPUT_CAPACITY);
         let (commands, command_receiver) = bounded(COMMAND_CAPACITY);

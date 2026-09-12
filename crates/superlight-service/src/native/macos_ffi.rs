@@ -52,7 +52,6 @@ unsafe extern "C" {
     pub fn CFNumberGetValue(number: Cf, kind: i32, value: *mut c_void) -> u8;
     pub fn CFDictionaryCreateMutable(allocator: Cf, capacity: isize, keys: Cf, values: Cf) -> Cf;
     pub fn CFDictionarySetValue(dictionary: Cf, key: Cf, value: Cf);
-    pub fn CFDictionaryGetValue(dictionary: Cf, key: Cf) -> Cf;
     pub fn CFSetGetCount(set: Cf) -> isize;
     pub fn CFSetGetValues(set: Cf, values: *mut Cf);
     pub fn CFRunLoopGetCurrent() -> Cf;
