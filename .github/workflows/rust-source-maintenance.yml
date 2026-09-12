@@ -20,7 +20,59 @@ jobs:
         with:
           ref: rewrite/rust-v3.6
           fetch-depth: 0
-      - name: Format workspace and resolve dependencies
+      - name: Apply scoped compiler and idle-loop corrections
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          root = Path('crates/superlight-service/src')
+          replacements = {
+              'transport.rs': [('info.bus_type() == BusType::Bluetooth', 'matches!(info.bus_type(), BusType::Bluetooth)')],
+              'native/windows.rs': [('fn focus_window(window: HWND, pid: LPARAM) -> BOOL', 'fn focus_window(window: HWND, pid: LPARAM) -> i32')],
+              'native/linux.rs': [('desktop_exec(executable)', 'desktop_exec(&executable)')],
+          }
+          for name, pairs in replacements.items():
+              path = root / name
+              content = path.read_text()
+              for before, after in pairs:
+                  if before in content:
+                      assert content.count(before) == 1, name
+                      content = content.replace(before, after)
+                  else:
+                      assert after in content, f'{name}: expected correction no longer matches'
+              path.write_text(content)
+          path = root / 'native/macos.rs'
+          content = path.read_text()
+          content = re.sub(r'ffi::\{CStr,\s*c_void\}', 'ffi::c_void', content)
+          path.write_text(content)
+          path = root / 'native/linux.rs'
+          content = path.read_text()
+          if 'fn poll_timeout(' not in content:
+              helper = '''fn poll_timeout(connected: bool, suspended: bool, retry_in: Duration) -> i32 {
+              if connected || suspended { 2000 } else { retry_in.as_millis().clamp(1, 3000) as i32 }
+          }
+
+          '''
+              anchor = 'pub fn run(shared: Arc<Shared>) -> io::Result<()> {'
+              assert content.count(anchor) == 1
+              content = content.replace(anchor, helper + anchor)
+              pattern = r'let timeout = if input\.is_some\(\) \{\s*2000\s*\} else \{\s*retry\s*\.saturating_duration_since\(Instant::now\(\)\)\s*\.as_millis\(\)\s*\.clamp\(1, 3000\) as i32\s*\};'
+              content, count = re.subn(pattern, 'let timeout = poll_timeout(input.is_some(), shared.suspended.load(Ordering::Acquire), retry.saturating_duration_since(Instant::now()));', content)
+              assert count == 1, 'Linux timeout shape changed'
+              test = '''
+              #[test]
+              fn suspended_input_does_not_busy_poll_an_expired_retry_deadline() {
+                  assert_eq!(poll_timeout(false, true, Duration::ZERO), 2000);
+                  assert_eq!(poll_timeout(true, false, Duration::ZERO), 2000);
+                  assert_eq!(poll_timeout(false, false, Duration::from_secs(3)), 3000);
+                  assert_eq!(poll_timeout(false, false, Duration::ZERO), 1);
+              }
+          '''
+              index = content.rfind('}')
+              assert index > 0
+              content = content[:index] + test + content[index:]
+          path.write_text(content)
+      - name: Format workspace and lock dependencies
         shell: bash
         run: |
           set -euo pipefail
@@ -32,6 +84,6 @@ jobs:
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'style: format Rust sources and lock workspace dependencies'
+            git commit -m 'fix: reconcile native interfaces and avoid suspended input busy polling'
             git push origin HEAD:refs/heads/rewrite/rust-v3.6
           fi
