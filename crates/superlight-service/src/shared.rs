@@ -20,6 +20,12 @@ pub enum Input {
     Wake,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct QueuedInput {
+    pub epoch: u64,
+    pub event: Input,
+}
+
 pub enum Command {
     Rpc { request: Request, reply: Sender<Response> },
     Request(Request),
@@ -28,12 +34,13 @@ pub enum Command {
     Error(String),
     Action(Action),
     Native { ready: bool, permissions: Permissions },
+    ForegroundChanged,
 }
 
 pub struct Shared {
     pub policy: ArcSwap<Policy>,
     pub config: ArcSwap<Value>,
-    pub input: Sender<Input>,
+    pub input: Sender<QueuedInput>,
     pub commands: Sender<Command>,
     pub snapshot: Mutex<Snapshot>,
     pub quit: AtomicBool,
@@ -45,16 +52,18 @@ pub struct Shared {
     pub reconnect: AtomicBool,
     pub refresh: AtomicBool,
     pub generation: AtomicU64,
+    pub input_epoch: AtomicU64,
     pub dropped: AtomicU64,
     pub gesture_held: AtomicBool,
     pub gesture_motion: AtomicBool,
     pub gesture_hid: AtomicBool,
+    pub headless: bool,
     started: Instant,
     sleep: (Mutex<()>, Condvar),
 }
 
 impl Shared {
-    pub fn new(value: Value, instance: String) -> Result<(Arc<Self>, Receiver<Input>, Receiver<Command>), String> {
+    pub fn new(value: Value, instance: String, headless: bool) -> Result<(Arc<Self>, Receiver<QueuedInput>, Receiver<Command>), String> {
         let policy = Policy::compile(&value, "default", Platform::current(), false)?;
         let (input, input_receiver) = bounded(INPUT_CAPACITY);
         let (commands, command_receiver) = bounded(COMMAND_CAPACITY);
@@ -64,9 +73,9 @@ impl Shared {
             snapshot: Mutex::new(snapshot), quit: AtomicBool::new(false), suspended: AtomicBool::new(false),
             native_ready: AtomicBool::new(false), device_connected: AtomicBool::new(false), restricted: AtomicBool::new(false),
             emergency: AtomicBool::new(false), reconnect: AtomicBool::new(false), refresh: AtomicBool::new(false),
-            generation: AtomicU64::new(1), dropped: AtomicU64::new(0), gesture_held: AtomicBool::new(false),
-            gesture_motion: AtomicBool::new(false), gesture_hid: AtomicBool::new(false),
-            started: Instant::now(), sleep: (Mutex::new(()), Condvar::new()),
+            generation: AtomicU64::new(1), input_epoch: AtomicU64::new(1), dropped: AtomicU64::new(0),
+            gesture_held: AtomicBool::new(false), gesture_motion: AtomicBool::new(false), gesture_hid: AtomicBool::new(false),
+            headless, started: Instant::now(), sleep: (Mutex::new(()), Condvar::new()),
         });
         Ok((shared, input_receiver, command_receiver))
     }
@@ -78,11 +87,12 @@ impl Shared {
     pub fn allowed(&self) -> bool {
         self.native_ready.load(Ordering::Acquire) && self.device_connected.load(Ordering::Acquire)
             && !self.suspended.load(Ordering::Acquire) && !self.restricted.load(Ordering::Acquire)
-            && !self.stopping() && !self.policy.load().paused
+            && !self.emergency.load(Ordering::Acquire) && !self.stopping() && !self.policy.load().paused
     }
 
     pub fn emit(&self, event: Input) -> bool {
-        if self.input.try_send(event).is_ok() { return true; }
+        let message = QueuedInput { epoch: self.input_epoch.load(Ordering::Acquire), event };
+        if self.input.try_send(message).is_ok() { return true; }
         self.dropped.fetch_add(1, Ordering::Relaxed);
         false
     }
@@ -98,6 +108,7 @@ impl Shared {
     }
 
     pub fn release_all(&self) {
+        self.input_epoch.fetch_add(1, Ordering::AcqRel);
         self.emergency.store(true, Ordering::Release);
         self.gesture_held.store(false, Ordering::Release);
         self.gesture_motion.store(false, Ordering::Release);
@@ -109,7 +120,9 @@ impl Shared {
 
     pub fn wait(&self, duration: Duration) {
         let guard = self.sleep.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let _ = self.sleep.1.wait_timeout_while(guard, duration, |_| !self.stopping() && !self.reconnect.load(Ordering::Acquire));
+        if !self.stopping() && !self.reconnect.load(Ordering::Acquire) {
+            let _result = self.sleep.1.wait_timeout(guard, duration);
+        }
     }
 
     pub fn request_reconnect(&self) {
@@ -122,7 +135,7 @@ impl Shared {
         self.quit.store(true, Ordering::Release);
         self.release_all();
         self.wake_hid();
-        crate::native::post(crate::native::UiEvent::Quit);
+        if !self.headless { crate::native::post(crate::native::UiEvent::Quit); }
     }
 
     pub fn status(&self) -> Snapshot {
@@ -130,6 +143,45 @@ impl Shared {
         snapshot.dropped_events = self.dropped.load(Ordering::Relaxed);
         snapshot.suspended = self.suspended.load(Ordering::Acquire);
         snapshot.native_ready = self.native_ready.load(Ordering::Acquire);
+        if !self.device_connected.load(Ordering::Acquire) { snapshot.device = None; }
         snapshot
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use superlight_core::{config, input::{Dispatch, Phase}};
+
+    #[test]
+    fn input_queue_never_grows_and_cancellation_invalidates_old_events() {
+        let (shared, input, _) = Shared::new(config::defaults(), "test".into(), true).unwrap();
+        let event = Input::Dispatch(Dispatch { source: 0, action: Action::Mouse(0), phase: Phase::Down });
+        for _ in 0..INPUT_CAPACITY { assert!(shared.emit(event)); }
+        assert!(!shared.emit(event));
+        shared.release_all();
+        let epoch = shared.input_epoch.load(Ordering::Acquire);
+        for queued in input.try_iter() { assert_ne!(queued.epoch, epoch); }
+        assert!(shared.emergency.load(Ordering::Acquire));
+        assert!(shared.emit(event));
+        assert_eq!(input.recv().unwrap().epoch, epoch);
+    }
+
+    #[test]
+    fn native_input_requires_connection_permissions_and_an_active_policy() {
+        let (shared, _, _) = Shared::new(superlight_core::config::defaults(), "test".into(), true).unwrap();
+        assert!(!shared.allowed());
+        shared.native_ready.store(true, Ordering::Release);
+        assert!(!shared.allowed());
+        shared.device_connected.store(true, Ordering::Release);
+        assert!(shared.allowed());
+        shared.suspended.store(true, Ordering::Release);
+        assert!(!shared.allowed());
+        shared.suspended.store(false, Ordering::Release);
+        shared.restricted.store(true, Ordering::Release);
+        assert!(!shared.allowed());
+        shared.restricted.store(false, Ordering::Release);
+        shared.release_all();
+        assert!(!shared.allowed());
     }
 }
