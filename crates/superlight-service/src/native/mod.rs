@@ -10,6 +10,10 @@ pub(crate) mod macos_ffi;
 mod windows;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "linux")]
+mod linux_desktop;
+#[cfg(target_os = "linux")]
+mod linux_frame;
 
 #[cfg(target_os = "macos")]
 use macos as platform;
