@@ -20,24 +20,10 @@ jobs:
         with:
           ref: rewrite/rust-v3.6
           fetch-depth: 0
-      - name: Check restoration test before implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          rustup show
-          if ! grep -q 'pub fn restore_slot' crates/superlight-core/src/session.rs; then
-            if cargo test --locked -p superlight-core --test restore_reporting > /tmp/restore-before.log 2>&1; then
-              cat /tmp/restore-before.log
-              exit 1
-            fi
-            grep -q 'no method named.*restore_slot' /tmp/restore-before.log
-            tail -30 /tmp/restore-before.log
-          fi
-      - name: Add acknowledged restoration without changing shutdown fallback
+      - name: Add acknowledged restoration and reconcile Linux persistence
         shell: python
         run: |
           from pathlib import Path
-          import re
           path = Path('crates/superlight-core/src/session.rs')
           content = path.read_text()
           if 'pub fn restore_slot(' not in content:
@@ -63,10 +49,21 @@ jobs:
           else:
               assert 'restore_slot' in content
           path.write_text(content)
+          path = Path('crates/superlight-service/src/native/linux.rs')
+          content = path.read_text()
+          before = 'atomic_write(&path, content.as_bytes())\n'
+          after = 'atomic_write(&path, content.as_bytes()).map(|_| ())\n'
+          if before in content:
+              assert content.count(before) == 1
+              content = content.replace(before, after)
+          else:
+              assert 'atomic_write(&path, content.as_bytes()).map(|_| ())' in content
+          path.write_text(content)
       - name: Format and verify portable regression suite
         shell: bash
         run: |
           set -euo pipefail
+          rustup show
           cargo fmt --all
           cargo test --locked -p superlight-core
           cargo test --locked -p superlight-ipc
@@ -79,6 +76,6 @@ jobs:
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'fix(hid): consume restoration acknowledgements and preserve asynchronous input'
+            git commit -m 'fix: acknowledge HID restoration and reconcile Linux login persistence'
             git push origin HEAD:refs/heads/rewrite/rust-v3.6
           fi
