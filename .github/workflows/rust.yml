@@ -9,7 +9,8 @@ on:
       - rust-toolchain.toml
       - crates/**
       - compatibility/**
-      - scripts/verify_headless.py
+      - scripts/**
+      - packaging/**
       - .github/workflows/rust.yml
   pull_request:
 
@@ -62,37 +63,56 @@ jobs:
         run: rustup show
       - name: Check formatting
         run: cargo fmt --all -- --check
-      - name: Test core, local control and native service
-        run: cargo test --locked --workspace --no-default-features
+      - name: Test native service before GUI compilation
+        shell: bash
+        run: |
+          mkdir -p evidence
+          cargo test --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets > evidence/service-tests.log 2>&1 || { tail -100 evidence/service-tests.log; exit 1; }
+          tail -20 evidence/service-tests.log
+      - name: Check native service safety and warnings
+        shell: bash
+        run: |
+          cargo clippy --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets -- -D warnings > evidence/service-clippy.log 2>&1 || { tail -120 evidence/service-clippy.log; exit 1; }
       - name: Build complete desktop application
         run: cargo build --locked --workspace --bins
       - name: Test complete workspace
-        run: cargo test --locked --workspace --all-targets
+        shell: bash
+        run: |
+          cargo test --locked --workspace --all-targets > evidence/workspace-tests.log 2>&1 || { tail -100 evidence/workspace-tests.log; exit 1; }
+          tail -20 evidence/workspace-tests.log
       - name: Static checks
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - name: Install reference dependencies
-        run: python -m pip install hidapi PySide6 Pillow
+      - name: Install reference and measurement dependencies
+        run: python -m pip install hidapi PySide6 Pillow psutil==7.2.2
       - name: Differential v3.6 contracts
         shell: bash
         run: |
           binary=target/debug/superlight-contract
           if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
-          python compatibility/test_v36.py --baseline-dir reference --binary "$binary"
+          set -o pipefail
+          python compatibility/test_v36.py --baseline-dir reference --binary "$binary" 2>&1 | tee evidence/differential.log
       - name: Verify service lifecycle without hardware
         shell: bash
         run: |
           binary=target/debug/superlight
           if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
-          python scripts/verify_headless.py --binary "$binary"
+          set -o pipefail
+          python scripts/verify_headless.py --binary "$binary" 2>&1 | tee evidence/lifecycle.log
       - name: Render and close the settings preview
         if: runner.os == 'Linux'
         run: xvfb-run -a timeout 30 target/debug/superlight-ui --smoke-test
       - name: Build optimized executables
         run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
+      - name: Measure isolated service memory and idle CPU
+        shell: bash
+        run: |
+          binary=target/release/superlight
+          if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
+          python scripts/measure_resources.py --binary "$binary" --output evidence/resources-headless.json --seconds 30 --max-rss-mib 64
+          python scripts/measure_resources.py --binary "$binary" --output evidence/resources-native.json --seconds 30 --native --max-rss-mib 256
       - name: Record binary sizes and dependencies
         shell: bash
         run: |
-          mkdir -p evidence
           cargo tree --locked -p superlight-service > evidence/service-dependencies.txt
           cargo tree --locked -p superlight-ui > evidence/ui-dependencies.txt
           git rev-parse HEAD > evidence/commit.txt
@@ -113,8 +133,15 @@ jobs:
             target/release/superlight-ui
             target/release/superlight-ui.exe
             LICENSE
-            evidence/
           if-no-files-found: error
+          retention-days: 14
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: evidence-${{ matrix.os }}-${{ runner.arch }}
+          path: evidence/
+          if-no-files-found: warn
           retention-days: 14
       - name: Save compiler cache
         if: always() && steps.cache.outputs.cache-hit != 'true'
