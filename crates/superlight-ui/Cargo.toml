@@ -1,0 +1,22 @@
+[package]
+name = "superlight-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = ["desktop"]
+desktop = ["dep:eframe", "dep:image"]
+
+[[bin]]
+name = "superlight-ui"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+[dependencies]
+superlight-core = { path = "../superlight-core" }
+superlight-ipc = { path = "../superlight-ipc" }
+serde_json.workspace = true
+eframe = { version = "=0.36.2", optional = true, default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+image = { version = "0.25", optional = true, default-features = false, features = ["png"] }
