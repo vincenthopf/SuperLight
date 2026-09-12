@@ -16,7 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 arc-swap = "=1.9.2"
 crossbeam-channel = "=0.5.17"
-ctrlc = "3.5"
+ctrlc = { version = "3.5", features = ["termination"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 hidapi = { version = "=2.6.6", default-features = false, features = ["macos-shared-device"] }
@@ -24,12 +24,13 @@ libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 hidapi = { version = "=2.6.6", default-features = false, features = ["windows-native"] }
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_RemoteDesktop", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_Console", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_RemoteDesktop", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 hidapi = { version = "=2.6.6", default-features = false, features = ["linux-native-basic-udev"] }
 libc = "0.2"
-evdev = "0.13"
+evdev = "=0.13.2"
+x11rb = { version = "=0.14.0", default-features = false }
 
 [dev-dependencies]
 tempfile.workspace = true
