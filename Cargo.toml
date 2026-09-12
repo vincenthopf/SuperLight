@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/superlight-core", "crates/superlight-ipc", "crates/superlight-ui"]
+members = ["crates/superlight-core", "crates/superlight-ipc", "crates/superlight-service", "crates/superlight-ui"]
 resolver = "2"
 
 [workspace.package]
