@@ -40,6 +40,19 @@ jobs:
           ref: 34d93f70b2a84e425698e0d3d748cae2c5d18911
           path: reference
           persist-credentials: false
+      - name: Archive audited sources
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p evidence
+          git archive HEAD | gzip > evidence/rewrite-source.tar.gz
+          git -C reference archive HEAD | gzip > evidence/v3.6-source.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: audited-sources
+          path: evidence/
+          retention-days: 14
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
@@ -55,3 +68,9 @@ jobs:
           binary=target/debug/superlight-contract
           if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
           python compatibility/test_v36.py --baseline-dir reference --binary "$binary"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: dependency-lock
+          path: Cargo.lock
+          retention-days: 14
