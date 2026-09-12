@@ -1,7 +1,14 @@
 use crate::{hid_access::Access, shared::Shared};
 use hidapi::{BusType, HidApi, HidDevice};
-use std::{ffi::CString, sync::{Arc, Mutex, Weak}, time::Duration};
-use superlight_core::{devices, hidpp, session::{Error, Transport}};
+use std::{
+    ffi::CString,
+    sync::{Arc, Mutex, Weak},
+    time::Duration,
+};
+use superlight_core::{
+    devices, hidpp,
+    session::{Error, Transport},
+};
 
 pub type AccessHandle = Arc<Mutex<Access>>;
 pub const MAX_CANDIDATES: usize = 32;
@@ -19,29 +26,56 @@ pub struct Candidate {
 
 impl Candidate {
     pub fn priority(&self) -> (u8, u8, u8, i32) {
-        (u8::from(!self.bluetooth), u8::from(self.usage_page < 0xff00), u8::from(self.usage != 2), self.interface)
+        (
+            u8::from(!self.bluetooth),
+            u8::from(self.usage_page < 0xff00),
+            u8::from(self.usage != 2),
+            self.interface,
+        )
     }
 
     pub fn indices(&self) -> &'static [u8] {
-        if self.bluetooth { &[0xff] } else { &hidpp::DEVICE_INDICES }
+        if self.bluetooth {
+            &[0xff]
+        } else {
+            &hidpp::DEVICE_INDICES
+        }
     }
 }
 
 pub fn enumerate(api: &mut HidApi) -> Result<Vec<Candidate>, Error> {
-    api.refresh_devices().map_err(|error| Error::Transport(error.to_string()))?;
+    api.refresh_devices()
+        .map_err(|error| Error::Transport(error.to_string()))?;
     let mut candidates = Vec::new();
     for info in api.device_list() {
         let name = info.product_string().unwrap_or_default();
-        if !devices::candidate_allowed(info.vendor_id(), info.product_id(), name, info.usage_page()) { continue; }
+        if !devices::candidate_allowed(info.vendor_id(), info.product_id(), name, info.usage_page())
+        {
+            continue;
+        }
         let candidate = Candidate {
-            path: info.path().to_owned(), product_id: info.product_id(), name: name.chars().take(255).collect(),
-            bluetooth: info.bus_type() == BusType::Bluetooth || (0xb000..=0xbfff).contains(&info.product_id()),
-            usage_page: info.usage_page(), usage: info.usage(), interface: info.interface_number(),
+            path: info.path().to_owned(),
+            product_id: info.product_id(),
+            name: name.chars().take(255).collect(),
+            bluetooth: info.bus_type() == BusType::Bluetooth
+                || (0xb000..=0xbfff).contains(&info.product_id()),
+            usage_page: info.usage_page(),
+            usage: info.usage(),
+            interface: info.interface_number(),
         };
-        if candidates.iter().any(|existing: &Candidate| existing.path == candidate.path) { continue; }
+        if candidates
+            .iter()
+            .any(|existing: &Candidate| existing.path == candidate.path)
+        {
+            continue;
+        }
         candidates.push(candidate);
     }
-    candidates.sort_by(|a, b| a.priority().cmp(&b.priority()).then_with(|| a.path.cmp(&b.path)));
+    candidates.sort_by(|a, b| {
+        a.priority()
+            .cmp(&b.priority())
+            .then_with(|| a.path.cmp(&b.path))
+    });
     candidates.truncate(MAX_CANDIDATES);
     Ok(candidates)
 }
@@ -53,28 +87,65 @@ pub struct HidTransport {
 }
 
 impl HidTransport {
-    pub fn open(api: &HidApi, candidate: &Candidate, shared: &Arc<Shared>) -> Result<(Self, AccessHandle), Error> {
-        let device = api.open_path(&candidate.path).map_err(|error| Error::Transport(error.to_string()))?;
-        device.set_blocking_mode(true).map_err(|error| Error::Transport(error.to_string()))?;
+    pub fn open(
+        api: &HidApi,
+        candidate: &Candidate,
+        shared: &Arc<Shared>,
+    ) -> Result<(Self, AccessHandle), Error> {
+        let device = api
+            .open_path(&candidate.path)
+            .map_err(|error| Error::Transport(error.to_string()))?;
+        device
+            .set_blocking_mode(true)
+            .map_err(|error| Error::Transport(error.to_string()))?;
         let access = Arc::new(Mutex::new(Access::default()));
-        Ok((Self { device, shared: Arc::downgrade(shared), access: Arc::clone(&access) }, access))
+        Ok((
+            Self {
+                device,
+                shared: Arc::downgrade(shared),
+                access: Arc::clone(&access),
+            },
+            access,
+        ))
     }
 }
 
 impl Transport for HidTransport {
     fn write_report(&mut self, report: &[u8; 20]) -> Result<(), Error> {
-        self.access.lock().map_err(|_| Error::Transport("HID access policy is unavailable".into()))?.validate(report).map_err(Error::Transport)?;
-        let written = self.device.write(report).map_err(|error| Error::Transport(error.to_string()))?;
-        if written != report.len() { return Err(Error::Transport(format!("Incomplete HID write: {written} of {} bytes", report.len()))); }
+        self.access
+            .lock()
+            .map_err(|_| Error::Transport("HID access policy is unavailable".into()))?
+            .validate(report)
+            .map_err(Error::Transport)?;
+        let written = self
+            .device
+            .write(report)
+            .map_err(|error| Error::Transport(error.to_string()))?;
+        if written != report.len() {
+            return Err(Error::Transport(format!(
+                "Incomplete HID write: {written} of {} bytes",
+                report.len()
+            )));
+        }
         Ok(())
     }
 
     fn read_wait(&mut self, buffer: &mut [u8; 64], timeout: Duration) -> Result<usize, Error> {
-        if self.shared.upgrade().is_none_or(|shared| shared.stopping()) { return Err(Error::Transport("The service is stopping".into())); }
+        if self.shared.upgrade().is_none_or(|shared| shared.stopping()) {
+            return Err(Error::Transport("The service is stopping".into()));
+        }
         let milliseconds = timeout.as_millis().clamp(1, 250) as i32;
-        let count = self.device.read_timeout(buffer, milliseconds).map_err(|error| Error::Transport(error.to_string()))?;
-        if count > buffer.len() { return Err(Error::Transport("Invalid HID report length".into())); }
-        self.access.lock().map_err(|_| Error::Transport("HID access policy is unavailable".into()))?.observe(&buffer[..count]);
+        let count = self
+            .device
+            .read_timeout(buffer, milliseconds)
+            .map_err(|error| Error::Transport(error.to_string()))?;
+        if count > buffer.len() {
+            return Err(Error::Transport("Invalid HID report length".into()));
+        }
+        self.access
+            .lock()
+            .map_err(|_| Error::Transport("HID access policy is unavailable".into()))?
+            .observe(&buffer[..count]);
         Ok(count)
     }
 }
@@ -84,7 +155,15 @@ mod tests {
     use super::*;
 
     fn candidate(bluetooth: bool, page: u16, usage: u16) -> Candidate {
-        Candidate { path: CString::new("test").unwrap(), product_id: if bluetooth { 0xb034 } else { 0xc548 }, name: String::new(), bluetooth, usage_page: page, usage, interface: 1 }
+        Candidate {
+            path: CString::new("test").unwrap(),
+            product_id: if bluetooth { 0xb034 } else { 0xc548 },
+            name: String::new(),
+            bluetooth,
+            usage_page: page,
+            usage,
+            interface: 1,
+        }
     }
 
     #[test]
@@ -97,6 +176,9 @@ mod tests {
     #[test]
     fn bluetooth_only_probes_direct_index_and_receivers_probe_all_six_slots() {
         assert_eq!(candidate(true, 0, 0).indices(), &[0xff]);
-        assert_eq!(candidate(false, 0xff00, 2).indices(), &[0xff, 1, 2, 3, 4, 5, 6]);
+        assert_eq!(
+            candidate(false, 0xff00, 2).indices(),
+            &[0xff, 1, 2, 3, 4, 5, 6]
+        );
     }
 }

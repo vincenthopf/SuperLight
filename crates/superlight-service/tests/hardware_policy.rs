@@ -4,7 +4,16 @@ use superlight_ipc::DeviceStatus;
 use superlight_service::hardware::Desired;
 
 fn mouse(max: u16) -> DeviceStatus {
-    DeviceStatus { dpi_min: 200, dpi_max: max, supports_dpi: true, supports_smart_shift: true, supports_gesture: true, supports_mode_shift: true, supports_dpi_switch: true, ..DeviceStatus::default() }
+    DeviceStatus {
+        dpi_min: 200,
+        dpi_max: max,
+        supports_dpi: true,
+        supports_smart_shift: true,
+        supports_gesture: true,
+        supports_mode_shift: true,
+        supports_dpi_switch: true,
+        ..DeviceStatus::default()
+    }
 }
 
 #[test]
@@ -23,7 +32,10 @@ fn unavailable_native_input_never_diverts_mouse_controls() {
 fn paused_profiles_release_all_diversions() {
     let value = config::defaults();
     let policy = Policy::compile(&value, "default", Platform::Windows, true).unwrap();
-    assert_eq!(Desired::from_config(&value, &policy, &mouse(8000), true).diverts, [false; 3]);
+    assert_eq!(
+        Desired::from_config(&value, &policy, &mouse(8000), true).diverts,
+        [false; 3]
+    );
 }
 
 #[test]
@@ -31,9 +43,15 @@ fn settings_are_bounded_by_the_connected_model() {
     let mut value = config::defaults();
     let policy = Policy::default();
     value["settings"]["dpi"] = json!(16000);
-    assert_eq!(Desired::from_config(&value, &policy, &mouse(4000), false).dpi, Some(4000));
+    assert_eq!(
+        Desired::from_config(&value, &policy, &mouse(4000), false).dpi,
+        Some(4000)
+    );
     value["settings"]["dpi"] = json!(-10);
-    assert_eq!(Desired::from_config(&value, &policy, &mouse(8000), false).dpi, Some(200));
+    assert_eq!(
+        Desired::from_config(&value, &policy, &mouse(8000), false).dpi,
+        Some(200)
+    );
 }
 
 #[test]

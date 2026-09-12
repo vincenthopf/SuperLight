@@ -29,7 +29,10 @@ fn asynchronous_notifications_never_acknowledge_commands() {
                 params: &[0, 0xc3],
             };
             for expected_function in 0..16 {
-                assert_eq!(hidpp::match_response(message, slot, 7, expected_function), ResponseMatch::Unrelated);
+                assert_eq!(
+                    hidpp::match_response(message, slot, 7, expected_function),
+                    ResponseMatch::Unrelated
+                );
             }
         }
     }

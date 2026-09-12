@@ -1,6 +1,10 @@
 use crate::shared::{Input, Shared};
 use std::sync::{Arc, atomic::Ordering};
-use superlight_core::{actions::Action, gesture::Source, input::{Decision, Router}};
+use superlight_core::{
+    actions::Action,
+    gesture::Source,
+    input::{Decision, Router},
+};
 
 pub struct Hook {
     shared: Arc<Shared>,
@@ -11,7 +15,11 @@ pub struct Hook {
 impl Hook {
     pub fn new(shared: Arc<Shared>) -> Self {
         let epoch = shared.input_epoch.load(Ordering::Acquire);
-        Self { shared, router: Router::default(), epoch }
+        Self {
+            shared,
+            router: Router::default(),
+            epoch,
+        }
     }
 
     fn synchronize(&mut self) {
@@ -25,11 +33,20 @@ impl Hook {
     pub fn button(&mut self, source: usize, down: bool) -> bool {
         self.synchronize();
         let shared = &self.shared;
-        let action = if shared.allowed() { shared.policy.load().action(source) } else { Action::None };
-        match self.router.route(source, down, action, |event| shared.emit(Input::Dispatch(event))) {
+        let action = if shared.allowed() {
+            shared.policy.load().action(source)
+        } else {
+            Action::None
+        };
+        match self.router.route(source, down, action, |event| {
+            shared.emit(Input::Dispatch(event))
+        }) {
             Decision::Pass => false,
             Decision::Block => true,
-            Decision::BlockAndReleaseAll => { shared.release_all(); true }
+            Decision::BlockAndReleaseAll => {
+                shared.release_all();
+                true
+            }
         }
     }
 
@@ -40,20 +57,40 @@ impl Hook {
 
     pub fn wheel(&mut self, source: u8, delta: f64) -> bool {
         self.synchronize();
-        if !self.shared.allowed() || !delta.is_finite() || delta == 0.0 { return false; }
+        if !self.shared.allowed() || !delta.is_finite() || delta == 0.0 {
+            return false;
+        }
         let policy = self.shared.policy.load();
         let action = policy.action(usize::from(source));
-        action != Action::None && self.shared.emit(Input::Wheel {
-            source, action, delta, threshold: policy.horizontal_threshold, at: self.shared.now_ms(),
-        })
+        action != Action::None
+            && self.shared.emit(Input::Wheel {
+                source,
+                action,
+                delta,
+                threshold: policy.horizontal_threshold,
+                at: self.shared.now_ms(),
+            })
     }
 
     pub fn movement(&mut self, x: f64, y: f64) -> bool {
         self.synchronize();
-        if !self.shared.allowed() || !self.shared.gesture_held.load(Ordering::Acquire)
-            || !self.shared.gesture_motion.load(Ordering::Acquire) { return false; }
-        if self.shared.gesture_hid.load(Ordering::Acquire) { return true; }
-        if self.shared.emit(Input::GestureMove { x, y, source: Source::Native, at: self.shared.now_ms() }) { return true; }
+        if !self.shared.allowed()
+            || !self.shared.gesture_held.load(Ordering::Acquire)
+            || !self.shared.gesture_motion.load(Ordering::Acquire)
+        {
+            return false;
+        }
+        if self.shared.gesture_hid.load(Ordering::Acquire) {
+            return true;
+        }
+        if self.shared.emit(Input::GestureMove {
+            x,
+            y,
+            source: Source::Native,
+            at: self.shared.now_ms(),
+        }) {
+            return true;
+        }
         self.shared.release_all();
         false
     }
@@ -64,11 +101,18 @@ mod tests {
     use super::*;
     use superlight_core::{config, input::Phase, policy::Policy};
 
-    fn setup() -> (Arc<Shared>, crossbeam_channel::Receiver<crate::shared::QueuedInput>, Hook) {
+    fn setup() -> (
+        Arc<Shared>,
+        crossbeam_channel::Receiver<crate::shared::QueuedInput>,
+        Hook,
+    ) {
         let (shared, receiver, _) = Shared::new(config::defaults(), "test".into(), true).unwrap();
         shared.native_ready.store(true, Ordering::Release);
         shared.device_connected.store(true, Ordering::Release);
-        let mut policy = Policy { paused: false, ..Policy::default() };
+        let mut policy = Policy {
+            paused: false,
+            ..Policy::default()
+        };
         policy.mappings[0] = Action::Mouse(0);
         shared.policy.store(Arc::new(policy));
         let hook = Hook::new(Arc::clone(&shared));
@@ -85,7 +129,9 @@ mod tests {
         assert!(hook.button(0, false));
         let events: Vec<_> = receiver.try_iter().collect();
         assert_eq!(events.len(), 2);
-        assert!(matches!(events[1].event, Input::Dispatch(event) if event.action == Action::Mouse(0) && event.phase == Phase::Up));
+        assert!(
+            matches!(events[1].event, Input::Dispatch(event) if event.action == Action::Mouse(0) && event.phase == Phase::Up)
+        );
     }
 
     #[test]
@@ -104,7 +150,9 @@ mod tests {
     #[test]
     fn input_overload_fails_open_for_new_presses() {
         let (shared, _receiver, mut hook) = setup();
-        for _ in 0..crate::shared::INPUT_CAPACITY { assert!(shared.emit(Input::Wake)); }
+        for _ in 0..crate::shared::INPUT_CAPACITY {
+            assert!(shared.emit(Input::Wake));
+        }
         assert!(!hook.button(0, true));
         assert!(!hook.button(0, false));
     }

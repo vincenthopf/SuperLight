@@ -1,8 +1,23 @@
-use crate::{hardware, native, output, shared::{Command, Shared}};
+use crate::{
+    hardware, native, output,
+    shared::{Command, Shared},
+};
 use crossbeam_channel::{Receiver, bounded};
 use serde_json::{Value, json};
-use std::{io, path::PathBuf, process::{Child, Command as ProcessCommand, Stdio}, sync::{Arc, atomic::Ordering}, thread::{self, JoinHandle}, time::{Duration, Instant}};
-use superlight_core::{CONFIG_LIMIT, actions::{Action, Platform}, config, policy::{self, Policy}};
+use std::{
+    io,
+    path::PathBuf,
+    process::{Child, Command as ProcessCommand, Stdio},
+    sync::{Arc, atomic::Ordering},
+    thread::{self, JoinHandle},
+    time::{Duration, Instant},
+};
+use superlight_core::{
+    CONFIG_LIMIT,
+    actions::{Action, Platform},
+    config,
+    policy::{self, Policy},
+};
 use superlight_ipc::{AppInfo, Endpoint, Paths, Request, Response, Server, Store};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -19,12 +34,18 @@ struct Workers {
 }
 
 impl Workers {
-    fn spawn(&mut self, name: &'static str, work: impl FnOnce() + Send + 'static) -> io::Result<()> {
+    fn spawn(
+        &mut self,
+        name: &'static str,
+        work: impl FnOnce() + Send + 'static,
+    ) -> io::Result<()> {
         let shared = Arc::clone(&self.shared);
         let handle = thread::Builder::new().name(name.into()).spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work));
             if result.is_err() {
-                shared.report(format!("{name} stopped unexpectedly. Input remapping has been disabled."));
+                shared.report(format!(
+                    "{name} stopped unexpectedly. Input remapping has been disabled."
+                ));
                 shared.stop();
             }
         })?;
@@ -37,29 +58,50 @@ impl Drop for Workers {
     fn drop(&mut self) {
         self.shared.stop();
         self.endpoint.wake();
-        for handle in self.handles.drain(..) { let _ = handle.join(); }
+        for handle in self.handles.drain(..) {
+            let _ = handle.join();
+        }
     }
 }
 
 pub fn run(options: Options) -> io::Result<()> {
     let paths = Paths::discover()?;
     let store = Store::open(paths.clone())?;
-    let show_ui = !options.headless && !options.background
-        && (options.force_ui || store.first_run || !policy::boolean(&store.value, "start_minimized", true));
+    let show_ui = !options.headless
+        && !options.background
+        && (options.force_ui
+            || store.first_run
+            || !policy::boolean(&store.value, "start_minimized", true));
     let server = Server::bind(paths)?;
-    let (shared, inputs, commands) = Shared::new(store.value.clone(), server.endpoint.instance.clone(), options.headless).map_err(io::Error::other)?;
+    let (shared, inputs, commands) = Shared::new(
+        store.value.clone(),
+        server.endpoint.instance.clone(),
+        options.headless,
+    )
+    .map_err(io::Error::other)?;
     {
-        let mut snapshot = shared.snapshot.lock().unwrap_or_else(|error| error.into_inner());
+        let mut snapshot = shared
+            .snapshot
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         snapshot.revision = store.revision;
         snapshot.notice = store.notice.clone();
     }
     let interrupt = Arc::clone(&shared);
     ctrlc::set_handler(move || interrupt.stop()).map_err(io::Error::other)?;
-    let mut workers = Workers { shared: Arc::clone(&shared), endpoint: server.endpoint.clone(), handles: Vec::with_capacity(4) };
+    let mut workers = Workers {
+        shared: Arc::clone(&shared),
+        endpoint: server.endpoint.clone(),
+        handles: Vec::with_capacity(4),
+    };
     let controller = Controller::new(store, Arc::clone(&shared))?;
     let output_shared = Arc::clone(&shared);
-    workers.spawn("superlight-output", move || output::run(output_shared, inputs))?;
-    workers.spawn("superlight-controller", move || controller.run(commands, show_ui))?;
+    workers.spawn("superlight-output", move || {
+        output::run(output_shared, inputs)
+    })?;
+    workers.spawn("superlight-controller", move || {
+        controller.run(commands, show_ui)
+    })?;
     if !options.headless {
         let hardware_shared = Arc::clone(&shared);
         workers.spawn("superlight-hid", move || hardware::run(hardware_shared))?;
@@ -76,7 +118,15 @@ fn serve(server: Server, shared: Arc<Shared>) {
         let mut connection = match server.accept() {
             Ok(connection) => connection,
             Err(error) => {
-                if !shared.stopping() && !matches!(error.kind(), io::ErrorKind::UnexpectedEof | io::ErrorKind::PermissionDenied | io::ErrorKind::TimedOut | io::ErrorKind::InvalidData) {
+                if !shared.stopping()
+                    && !matches!(
+                        error.kind(),
+                        io::ErrorKind::UnexpectedEof
+                            | io::ErrorKind::PermissionDenied
+                            | io::ErrorKind::TimedOut
+                            | io::ErrorKind::InvalidData
+                    )
+                {
                     shared.report(format!("Local control: {error}"));
                     shared.wait(Duration::from_millis(50));
                 }
@@ -88,7 +138,11 @@ fn serve(server: Server, shared: Arc<Shared>) {
             Response::success(shared.status())
         } else {
             let (reply, receiver) = bounded(1);
-            if shared.commands.send_timeout(Command::Rpc { request, reply }, Duration::from_millis(250)).is_err() {
+            if shared
+                .commands
+                .send_timeout(Command::Rpc { request, reply }, Duration::from_millis(250))
+                .is_err()
+            {
                 Response::failure("The service is busy or stopping. Retry the operation.")
             } else {
                 receiver.recv_timeout(Duration::from_secs(2)).unwrap_or_else(|_| Response::failure("The operation did not finish before its deadline. Refresh status before retrying."))
@@ -98,28 +152,56 @@ fn serve(server: Server, shared: Arc<Shared>) {
     }
 }
 
-pub fn apply_settings(store: &mut Store, expected_revision: u64, value: Value, mut set_login: impl FnMut(bool) -> io::Result<()>) -> io::Result<()> {
-    if expected_revision != store.revision { return Err(io::Error::new(io::ErrorKind::WouldBlock, "Settings changed. Reload before saving.")); }
+pub fn apply_settings(
+    store: &mut Store,
+    expected_revision: u64,
+    value: Value,
+    mut set_login: impl FnMut(bool) -> io::Result<()>,
+) -> io::Result<()> {
+    if expected_revision != store.revision {
+        return Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            "Settings changed. Reload before saving.",
+        ));
+    }
     let value = config::migrate(value).map_err(io::Error::other)?;
     policy::validate_actions(&value, Platform::current()).map_err(io::Error::other)?;
-    if serde_json::to_vec_pretty(&value).map_err(io::Error::other)?.len() > CONFIG_LIMIT { return Err(io::Error::other("Configuration exceeds 1 MiB")); }
+    if serde_json::to_vec_pretty(&value)
+        .map_err(io::Error::other)?
+        .len()
+        > CONFIG_LIMIT
+    {
+        return Err(io::Error::other("Configuration exceeds 1 MiB"));
+    }
     let old_login = policy::boolean(&store.value, "start_at_login", false);
     let new_login = policy::boolean(&value, "start_at_login", false);
-    if old_login != new_login { set_login(new_login)?; }
+    if old_login != new_login {
+        set_login(new_login)?;
+    }
     if let Err(error) = store.apply(expected_revision, value) {
-        if old_login != new_login && let Err(rollback) = set_login(old_login) {
-            return Err(io::Error::other(format!("{error}. Restoring the previous login setting also failed: {rollback}")));
+        if old_login != new_login
+            && let Err(rollback) = set_login(old_login)
+        {
+            return Err(io::Error::other(format!(
+                "{error}. Restoring the previous login setting also failed: {rollback}"
+            )));
         }
         return Err(error);
     }
     Ok(())
 }
 
-pub fn device_action(value: &Value, action: Action, dpi_min: u16, dpi_max: u16) -> Result<Value, String> {
+pub fn device_action(
+    value: &Value,
+    action: Action,
+    dpi_min: u16,
+    dpi_max: u16,
+) -> Result<Value, String> {
     let mut value = value.clone();
     match action {
         Action::ToggleSmartShift => {
-            value["settings"]["smart_shift_enabled"] = json!(!policy::boolean(&value, "smart_shift_enabled", false));
+            value["settings"]["smart_shift_enabled"] =
+                json!(!policy::boolean(&value, "smart_shift_enabled", false));
         }
         Action::SwitchScrollMode => {
             let mut state = policy::smart_shift(&value);
@@ -128,15 +210,25 @@ pub fn device_action(value: &Value, action: Action, dpi_min: u16, dpi_max: u16) 
             value["settings"]["smart_shift_enabled"] = json!(false);
         }
         Action::CycleDpi => {
-            let candidates = value["settings"]["dpi_presets"].as_array().cloned().unwrap_or_else(|| vec![json!(800), json!(1200), json!(1600), json!(2400)]);
+            let candidates = value["settings"]["dpi_presets"]
+                .as_array()
+                .cloned()
+                .unwrap_or_else(|| vec![json!(800), json!(1200), json!(1600), json!(2400)]);
             let mut presets = Vec::with_capacity(candidates.len().min(64));
             for dpi in candidates.iter().take(64).filter_map(Value::as_i64) {
                 let dpi = dpi.clamp(i64::from(dpi_min), i64::from(dpi_max.max(dpi_min))) as u16;
-                if !presets.contains(&dpi) { presets.push(dpi); }
+                if !presets.contains(&dpi) {
+                    presets.push(dpi);
+                }
             }
-            if presets.is_empty() { return Err("DPI presets must contain at least one number".into()); }
+            if presets.is_empty() {
+                return Err("DPI presets must contain at least one number".into());
+            }
             let current = policy::number(&value, "dpi", 1000.0) as u16;
-            let index = presets.iter().position(|dpi| *dpi == current).map_or(0, |index| (index + 1) % presets.len());
+            let index = presets
+                .iter()
+                .position(|dpi| *dpi == current)
+                .map_or(0, |index| (index + 1) % presets.len());
             value["settings"]["dpi"] = json!(presets[index]);
         }
         _ => return Err("Not a device action".into()),
@@ -156,16 +248,33 @@ struct Controller {
 
 impl Controller {
     fn new(store: Store, shared: Arc<Shared>) -> io::Result<Self> {
-        Ok(Self { store, shared, foreground: AppInfo::default(), active_profile: "default".into(), paused: false, ui: None, executable: std::env::current_exe()? })
+        Ok(Self {
+            store,
+            shared,
+            foreground: AppInfo::default(),
+            active_profile: "default".into(),
+            paused: false,
+            ui: None,
+            executable: std::env::current_exe()?,
+        })
     }
 
     fn run(mut self, receiver: Receiver<Command>, show_ui: bool) {
         self.refresh_foreground();
         self.publish_configuration();
-        if show_ui && let Err(error) = self.show_settings() { self.record_error(error.to_string()); }
+        if show_ui && let Err(error) = self.show_settings() {
+            self.record_error(error.to_string());
+        }
         let mut last_poll = Instant::now();
         while !self.shared.stopping() {
-            let interval = if self.store.value["profiles"].as_object().is_some_and(|profiles| profiles.len() > 1) { Duration::from_millis(500) } else { Duration::from_secs(2) };
+            let interval = if self.store.value["profiles"]
+                .as_object()
+                .is_some_and(|profiles| profiles.len() > 1)
+            {
+                Duration::from_millis(500)
+            } else {
+                Duration::from_secs(2)
+            };
             let remaining = interval.saturating_sub(last_poll.elapsed());
             match receiver.recv_timeout(remaining) {
                 Ok(command) => self.handle(command),
@@ -174,8 +283,14 @@ impl Controller {
             }
             if last_poll.elapsed() >= interval {
                 self.refresh_foreground();
-                if !self.shared.headless { native::post(native::UiEvent::Refresh); }
-                if let Some(child) = self.ui.as_mut() && matches!(child.try_wait(), Ok(Some(_))) { self.ui = None; }
+                if !self.shared.headless {
+                    native::post(native::UiEvent::Refresh);
+                }
+                if let Some(child) = self.ui.as_mut()
+                    && matches!(child.try_wait(), Ok(Some(_)))
+                {
+                    self.ui = None;
+                }
                 last_poll = Instant::now();
             }
         }
@@ -183,48 +298,82 @@ impl Controller {
 
     fn record_error(&self, error: String) {
         let error: String = error.chars().take(512).collect();
-        let mut snapshot = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        if snapshot.errors.last() == Some(&error) { return; }
-        if snapshot.errors.len() == 16 { snapshot.errors.remove(0); }
+        let mut snapshot = self
+            .shared
+            .snapshot
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if snapshot.errors.last() == Some(&error) {
+            return;
+        }
+        if snapshot.errors.len() == 16 {
+            snapshot.errors.remove(0);
+        }
         snapshot.errors.push(error);
     }
 
     fn refresh_foreground(&mut self) {
-        if self.shared.headless { return; }
+        if self.shared.headless {
+            return;
+        }
         let foreground = native::foreground();
         let restricted = foreground.input_restricted;
-        if self.shared.restricted.swap(restricted, Ordering::AcqRel) != restricted && restricted { self.shared.release_all(); }
+        if self.shared.restricted.swap(restricted, Ordering::AcqRel) != restricted && restricted {
+            self.shared.release_all();
+        }
         if foreground != self.foreground {
             self.foreground = foreground;
-            let profile = config::profile_for_aliases(&self.store.value, &self.foreground.aliases).to_owned();
+            let profile =
+                config::profile_for_aliases(&self.store.value, &self.foreground.aliases).to_owned();
             if profile != self.active_profile {
                 self.active_profile = profile;
                 self.publish_policy();
             }
-            let mut snapshot = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut snapshot = self
+                .shared
+                .snapshot
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             snapshot.foreground = self.foreground.clone();
         }
     }
 
     fn publish_policy(&self) {
-        match Policy::compile(&self.store.value, &self.active_profile, Platform::current(), self.paused) {
+        match Policy::compile(
+            &self.store.value,
+            &self.active_profile,
+            Platform::current(),
+            self.paused,
+        ) {
             Ok(policy) => {
                 self.shared.policy.store(Arc::new(policy));
                 self.shared.generation.fetch_add(1, Ordering::AcqRel);
                 self.shared.wake_hid();
-                let mut snapshot = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                let mut snapshot = self
+                    .shared
+                    .snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 snapshot.active_profile.clone_from(&self.active_profile);
                 snapshot.paused = self.paused;
             }
-            Err(error) => { self.record_error(error); self.shared.release_all(); }
+            Err(error) => {
+                self.record_error(error);
+                self.shared.release_all();
+            }
         }
     }
 
     fn publish_configuration(&mut self) {
         self.shared.config.store(Arc::new(self.store.value.clone()));
-        self.active_profile = config::profile_for_aliases(&self.store.value, &self.foreground.aliases).to_owned();
+        self.active_profile =
+            config::profile_for_aliases(&self.store.value, &self.foreground.aliases).to_owned();
         {
-            let mut snapshot = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut snapshot = self
+                .shared
+                .snapshot
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             snapshot.config = self.store.value.clone();
             snapshot.revision = self.store.revision;
             snapshot.notice.clone_from(&self.store.notice);
@@ -236,7 +385,12 @@ impl Controller {
         let executable = &self.executable;
         let headless = self.shared.headless;
         apply_settings(&mut self.store, revision, value, |enabled| {
-            if headless { return Err(io::Error::new(io::ErrorKind::Unsupported, "Login integration is disabled in headless verification mode")); }
+            if headless {
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "Login integration is disabled in headless verification mode",
+                ));
+            }
             native::set_start_at_login(enabled, executable)
         })?;
         self.publish_configuration();
@@ -244,7 +398,12 @@ impl Controller {
     }
 
     fn show_settings(&mut self) -> io::Result<()> {
-        if self.shared.headless { return Err(io::Error::new(io::ErrorKind::Unsupported, "The settings window is disabled in headless verification mode")); }
+        if self.shared.headless {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "The settings window is disabled in headless verification mode",
+            ));
+        }
         if let Some(child) = self.ui.as_mut() {
             if child.try_wait()?.is_none() {
                 native::post(native::UiEvent::Focus(child.id()));
@@ -252,10 +411,24 @@ impl Controller {
             }
             self.ui = None;
         }
-        let name = if cfg!(windows) { "superlight-ui.exe" } else { "superlight-ui" };
+        let name = if cfg!(windows) {
+            "superlight-ui.exe"
+        } else {
+            "superlight-ui"
+        };
         let path = self.executable.with_file_name(name);
-        if !path.is_file() { return Err(io::Error::new(io::ErrorKind::NotFound, "The superlight-ui executable is missing. Install the complete application bundle.")); }
-        let child = ProcessCommand::new(path).arg("--service-running").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;
+        if !path.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "The superlight-ui executable is missing. Install the complete application bundle.",
+            ));
+        }
+        let child = ProcessCommand::new(path)
+            .arg("--service-running")
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
         self.ui = Some(child);
         Ok(())
     }
@@ -263,55 +436,117 @@ impl Controller {
     fn request(&mut self, request: Request) -> Response {
         let result = match request {
             Request::Get => Ok(()),
-            Request::Apply { expected_revision, config } => self.apply(expected_revision, config),
+            Request::Apply {
+                expected_revision,
+                config,
+            } => self.apply(expected_revision, config),
             Request::SetPaused { value } => {
                 self.paused = value;
-                if value { self.shared.release_all(); }
+                if value {
+                    self.shared.release_all();
+                }
                 self.publish_policy();
                 Ok(())
             }
-            Request::Reconnect => { self.shared.request_reconnect(); Ok(()) }
-            Request::RefreshHardware => { self.shared.refresh.store(true, Ordering::Release); self.shared.wake_hid(); Ok(()) }
+            Request::Reconnect => {
+                self.shared.request_reconnect();
+                Ok(())
+            }
+            Request::RefreshHardware => {
+                self.shared.refresh.store(true, Ordering::Release);
+                self.shared.wake_hid();
+                Ok(())
+            }
             Request::RequestPermissions => {
-                if self.shared.headless { Err(io::Error::new(io::ErrorKind::Unsupported, "Native permissions are disabled in headless verification mode")) }
-                else { native::post(native::UiEvent::Permissions); Ok(()) }
+                if self.shared.headless {
+                    Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "Native permissions are disabled in headless verification mode",
+                    ))
+                } else {
+                    native::post(native::UiEvent::Permissions);
+                    Ok(())
+                }
             }
             Request::ShowSettings => self.show_settings(),
-            Request::Quit => { self.shared.stop(); Ok(()) }
+            Request::Quit => {
+                self.shared.stop();
+                Ok(())
+            }
         };
-        match result { Ok(()) => Response::success(self.shared.status()), Err(error) => Response::failure(error) }
+        match result {
+            Ok(()) => Response::success(self.shared.status()),
+            Err(error) => Response::failure(error),
+        }
     }
 
     fn handle(&mut self, command: Command) {
         match command {
-            Command::Rpc { request, reply } => { let _ = reply.try_send(self.request(request)); }
+            Command::Rpc { request, reply } => {
+                let _ = reply.try_send(self.request(request));
+            }
             Command::Request(request) => {
                 let response = self.request(request);
-                if let Some(error) = response.error { self.record_error(error); }
+                if let Some(error) = response.error {
+                    self.record_error(error);
+                }
             }
             Command::Device(device) => {
-                let mut snapshot = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                let mut snapshot = self
+                    .shared
+                    .snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
                 snapshot.device = device;
             }
             Command::HardwarePending(pending) => {
-                self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).hardware_pending = pending;
+                self.shared
+                    .snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .hardware_pending = pending;
             }
             Command::Error(error) => self.record_error(error),
             Command::Native { ready, permissions } => {
-                if !ready { self.shared.release_all(); }
+                if !ready {
+                    self.shared.release_all();
+                }
                 self.shared.native_ready.store(ready, Ordering::Release);
                 self.shared.generation.fetch_add(1, Ordering::AcqRel);
-                self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).permissions = permissions;
+                self.shared
+                    .snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .permissions = permissions;
                 self.shared.wake_hid();
             }
             Command::ForegroundChanged => self.refresh_foreground(),
             Command::Action(action) => {
-                let device = self.shared.snapshot.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).device.clone();
+                let device = self
+                    .shared
+                    .snapshot
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .device
+                    .clone();
                 if let Some(device) = device {
-                    let supported = if action == Action::CycleDpi { device.supports_dpi } else { device.supports_smart_shift };
-                    if !supported { self.record_error("The connected mouse does not support that device action".into()); return; }
+                    let supported = if action == Action::CycleDpi {
+                        device.supports_dpi
+                    } else {
+                        device.supports_smart_shift
+                    };
+                    if !supported {
+                        self.record_error(
+                            "The connected mouse does not support that device action".into(),
+                        );
+                        return;
+                    }
                     match device_action(&self.store.value, action, device.dpi_min, device.dpi_max) {
-                        Ok(value) => { if let Err(error) = self.apply(self.store.revision, value) { self.record_error(error.to_string()); } }
+                        Ok(value) => {
+                            if let Err(error) = self.apply(self.store.revision, value) {
+                                self.record_error(error.to_string());
+                            }
+                        }
                         Err(error) => self.record_error(error),
                     }
                 }
@@ -339,9 +574,19 @@ mod tests {
         let mut store = Store::open(Paths::in_dir(directory.path())).unwrap();
         let mut value = store.value.clone();
         value["settings"]["start_at_login"] = json!(true);
-        assert!(apply_settings(&mut store, 0, value.clone(), |_| panic!("Login modified before revision validation")).is_err());
+        assert!(
+            apply_settings(&mut store, 0, value.clone(), |_| panic!(
+                "Login modified before revision validation"
+            ))
+            .is_err()
+        );
         value["profiles"]["default"]["mappings"]["middle"] = json!("custom:not-a-key");
-        assert!(apply_settings(&mut store, 1, value, |_| panic!("Login modified before action validation")).is_err());
+        assert!(
+            apply_settings(&mut store, 1, value, |_| panic!(
+                "Login modified before action validation"
+            ))
+            .is_err()
+        );
     }
 
     #[test]
@@ -352,7 +597,13 @@ mod tests {
         let mut value = store.value.clone();
         value["settings"]["start_at_login"] = json!(true);
         let mut calls = Vec::new();
-        assert!(apply_settings(&mut store, 1, value, |enabled| { calls.push(enabled); Ok(()) }).is_err());
+        assert!(
+            apply_settings(&mut store, 1, value, |enabled| {
+                calls.push(enabled);
+                Ok(())
+            })
+            .is_err()
+        );
         assert_eq!(calls, [true, false]);
         assert_eq!(store.revision, 1);
         assert!(!policy::boolean(&store.value, "start_at_login", false));
