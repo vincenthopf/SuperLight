@@ -1,0 +1,29 @@
+name: Rewrite cross-target verification
+
+on:
+  push:
+    branches: [rewrite/rust-v3.6]
+    paths: [.github/workflows/rewrite-cross-targets.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  targets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install pinned cross-target standard libraries
+        shell: bash
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup target add --toolchain 1.98.1 x86_64-pc-windows-msvc x86_64-apple-darwin aarch64-apple-darwin
+          compiler="$(dirname "$(dirname "$(rustup which --toolchain 1.98.1 rustc)")")"
+          mkdir -p "$RUNNER_TEMP/targets"
+          tar -C "$compiler/lib/rustlib" -czf "$RUNNER_TEMP/targets/cross-targets.tar.gz" x86_64-pc-windows-msvc x86_64-apple-darwin aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-cross-targets
+          path: ${{ runner.temp }}/targets/cross-targets.tar.gz
+          retention-days: 3
+          compression-level: 0
