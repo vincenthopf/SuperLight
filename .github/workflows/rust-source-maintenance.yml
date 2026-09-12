@@ -11,7 +11,7 @@ permissions:
 jobs:
   normalize:
     if: github.repository == 'vincenthopf/SuperLight' && github.ref == 'refs/heads/rewrite/rust-v3.6'
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     timeout-minutes: 15
     permissions:
       contents: write
@@ -20,74 +20,62 @@ jobs:
         with:
           ref: rewrite/rust-v3.6
           fetch-depth: 0
-      - name: Check secure-input regression before implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          rustup show
-          if ! grep -q 'pub fn set_input_restricted' crates/superlight-service/src/shared.rs; then
-            if cargo test --locked -p superlight-service --test input_restrictions > /tmp/restrictions-before.log 2>&1; then
-              cat /tmp/restrictions-before.log
-              exit 1
-            fi
-            grep -q 'no method named.*set_input_restricted' /tmp/restrictions-before.log
-            tail -35 /tmp/restrictions-before.log
-          fi
-      - name: Reconcile foreground restrictions and application-owned discovery
+      - name: Remove unused bindings and simplify channel types
         shell: python
         run: |
           from pathlib import Path
-          path = Path('crates/superlight-service/src/shared.rs')
+          root = Path('crates/superlight-service/src')
+          path = root / 'shared.rs'
           content = path.read_text()
-          if 'pub fn set_input_restricted(' not in content:
-              anchor = '    pub fn allowed(&self) -> bool {'
-              method = '''    pub fn set_input_restricted(&self, restricted: bool) {
-                  if self.restricted.swap(restricted, Ordering::AcqRel) != restricted {
-                      if restricted { self.release_all(); }
-                      self.generation.fetch_add(1, Ordering::AcqRel);
-                      self.wake_hid();
-                  }
-              }
-
-          '''
-              assert content.count(anchor) == 1
-              content = content.replace(anchor, method + anchor)
+          before = 'Result<(Arc<Self>, Receiver<QueuedInput>, Receiver<Command>), String>'
+          if before in content:
+              assert content.count(before) == 1
+              content = content.replace(before, 'Result<SharedChannels, String>')
+              content = content.replace('impl Shared {', 'pub type SharedChannels = (Arc<Shared>, Receiver<QueuedInput>, Receiver<Command>);\n\nimpl Shared {')
+          else:
+              assert 'Result<SharedChannels, String>' in content
           path.write_text(content)
-          path = Path('crates/superlight-service/src/runtime.rs')
+          path = root / 'native/login.rs'
           content = path.read_text()
-          before = '''        if self.shared.restricted.swap(restricted, Ordering::AcqRel) != restricted && restricted {
-                      self.shared.release_all();
-                  }'''
-          after = '        self.shared.set_input_restricted(restricted);'
+          anchor = 'pub fn xml(value: &str) -> String {'
+          if '#[cfg(any(target_os = "macos", test))]' not in content:
+              assert content.count(anchor) == 1
+              content = content.replace(anchor, '#[cfg(any(target_os = "macos", test))]\n' + anchor)
+          path.write_text(content)
+          path = root / 'native/macos_ffi.rs'
+          content = path.read_text()
+          content = content.replace('    pub fn CFDictionaryGetValue(dictionary: Cf, key: Cf) -> Cf;\n', '')
+          path.write_text(content)
+          path = root / 'native/linux.rs'
+          content = path.read_text()
+          content = content.replace('desktop_exec(&executable)', 'desktop_exec(executable)')
+          path.write_text(content)
+          path = root / 'native/linux_frame.rs'
+          content = path.read_text()
+          before = '''                if let Some(source) = button_source(event.code()) {
+                              if event.value() == 2 || hook.button(source, event.value() != 0) {
+                                  continue;
+                              }
+                          }'''
+          after = '''                if let Some(source) = button_source(event.code())
+                              && (event.value() == 2 || hook.button(source, event.value() != 0)) {
+                              continue;
+                          }'''
           if before in content:
               assert content.count(before) == 1
               content = content.replace(before, after)
           else:
-              assert after in content
+              assert '&& (event.value() == 2 || hook.button(source, event.value() != 0))' in content
           path.write_text(content)
-          path = Path('crates/superlight-service/src/main.rs')
-          content = path.read_text()
-          anchor = '    superlight_service::run(options)'
-          if 'HidApi::disable_device_discovery()' not in content:
-              assert content.count(anchor) == 1
-              content = content.replace(anchor, '    hidapi::HidApi::disable_device_discovery();\n' + anchor)
-          path.write_text(content)
-          path = Path('crates/superlight-service/src/hardware.rs')
-          content = path.read_text()
-          before = '            "IOKit shared device"'
-          after = '            candidate.backend()'
-          if before in content:
-              assert content.count(before) == 1
-              content = content.replace(before, after)
-          else:
-              assert after in content
-          path.write_text(content)
-      - name: Format and verify workspace without the renderer
+      - name: Apply compiler-checked native simplifications
         shell: bash
         run: |
           set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt
+          cargo clippy --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets --fix --allow-dirty --allow-staged
           cargo fmt --all
-          cargo test --locked --workspace --no-default-features
+          cargo clippy --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets -- -D warnings
+          cargo test --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets
       - name: Commit verified corrections
         shell: bash
         run: |
@@ -96,6 +84,6 @@ jobs:
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'fix: reconfigure HID controls on secure-input transitions'
+            git commit -m 'refactor: remove unused platform bindings and satisfy native static checks'
             git push origin HEAD:refs/heads/rewrite/rust-v3.6
           fi
