@@ -1,7 +1,11 @@
 use crate::{Paths, Request, Response, PROTOCOL_VERSION, store};
-use interprocess::{ConnectWaitMode, local_socket::{prelude::*, ConnectOptions, Listener, ListenerOptions, Stream}};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{fs, io::{self, Read, Write}, time::{Duration, Instant}};
+
+#[cfg(unix)]
+use std::os::unix::net::{UnixListener as Listener, UnixStream as Stream};
+#[cfg(windows)]
+use std::net::{TcpListener as Listener, TcpStream as Stream};
 
 pub const FRAME_LIMIT: usize = superlight_core::CONFIG_LIMIT + 65_536;
 pub const TIMEOUT: Duration = Duration::from_secs(3);
@@ -59,12 +63,14 @@ impl Server {
         let directory = tempfile::Builder::new().prefix("superlight-").tempdir_in("/tmp")?;
         #[cfg(unix)]
         let name = directory.path().join("control.sock").to_str().ok_or_else(|| io::Error::other("Invalid socket path"))?.to_owned();
+        #[cfg(unix)]
+        let listener = Listener::bind(&name)?;
         #[cfg(windows)]
-        let name = format!("superlight.{instance}");
+        let listener = Listener::bind((std::net::Ipv4Addr::LOCALHOST, 0))?;
+        #[cfg(windows)]
+        let name = listener.local_addr()?.to_string();
         let endpoint = Endpoint { protocol: PROTOCOL_VERSION, name, token: random_hex::<32>()?, instance };
-        let listener = ListenerOptions::new().name(socket_name(&endpoint.name)?).create_sync()?;
-        let bytes = serde_json::to_vec(&endpoint).map_err(invalid)?;
-        store::atomic_write(&paths.endpoint, &bytes)?;
+        store::atomic_write(&paths.endpoint, &serde_json::to_vec(&endpoint).map_err(invalid)?)?;
         Ok(Self {
             listener, endpoint, paths,
             #[cfg(unix)]
@@ -73,7 +79,8 @@ impl Server {
     }
 
     pub fn accept(&self) -> io::Result<Connection> {
-        let stream = self.listener.accept()?;
+        let (stream, _) = self.listener.accept()?;
+        configure(&stream)?;
         let envelope: Envelope = read_frame(&stream, Instant::now() + TIMEOUT)?;
         if envelope.protocol != PROTOCOL_VERSION || !token_matches(&envelope.token, &self.endpoint.token) {
             return Err(io::Error::new(io::ErrorKind::PermissionDenied, "Unauthorized local request"));
@@ -97,18 +104,11 @@ fn token_matches(left: &str, right: &str) -> bool {
     left.bytes().zip(right.bytes()).fold(0u8, |difference, (left, right)| difference | (left ^ right)) == 0
 }
 
-fn socket_name(name: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
-    #[cfg(unix)] {
-        use interprocess::local_socket::GenericFilePath;
-        name.to_fs_name::<GenericFilePath>()
-    }
-    #[cfg(windows)] {
-        use interprocess::local_socket::GenericNamespaced;
-        if !name.starts_with("superlight.") || name.len() > 64 || name.contains(['\\', '/']) {
-            return Err(invalid("Invalid local pipe name"));
-        }
-        name.to_ns_name::<GenericNamespaced>()
-    }
+fn configure(stream: &Stream) -> io::Result<()> {
+    stream.set_nonblocking(true)?;
+    #[cfg(windows)]
+    stream.set_nodelay(true)?;
+    Ok(())
 }
 
 impl Endpoint {
@@ -121,17 +121,25 @@ impl Endpoint {
     }
 
     fn connect(&self) -> io::Result<Stream> {
-        ConnectOptions::new().name(socket_name(&self.name)?).wait_mode(ConnectWaitMode::Timeout(TIMEOUT)).connect_sync()
+        #[cfg(unix)]
+        let stream = Stream::connect(&self.name)?;
+        #[cfg(windows)]
+        let stream = {
+            let address: std::net::SocketAddr = self.name.parse().map_err(invalid)?;
+            if address.ip() != std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST) {
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "The control endpoint must be on IPv4 loopback"));
+            }
+            Stream::connect_timeout(&address, TIMEOUT)?
+        };
+        configure(&stream)?;
+        Ok(stream)
     }
 
-    pub fn wake(&self) {
-        let _ = self.connect();
-    }
+    pub fn wake(&self) { let _ = self.connect(); }
 }
 
 pub fn call(paths: &Paths, request: &Request) -> io::Result<Response> {
-    let endpoint = Endpoint::load(paths)?;
-    call_endpoint(&endpoint, request)
+    call_endpoint(&Endpoint::load(paths)?, request)
 }
 
 pub fn call_endpoint(endpoint: &Endpoint, request: &Request) -> io::Result<Response> {
@@ -148,13 +156,19 @@ fn remaining(deadline: Instant) -> io::Result<Duration> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "Local request timed out"))
 }
 
+fn wait_for_progress(deadline: Instant) -> io::Result<()> {
+    std::thread::sleep(remaining(deadline)?.min(Duration::from_millis(1)));
+    Ok(())
+}
+
 fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        stream.set_recv_timeout(Some(remaining(deadline)?))?;
+        remaining(deadline)?;
         match stream.read(bytes) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Local connection closed")),
             Ok(count) => bytes = &mut bytes[count..],
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {},
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
             Err(error) => return Err(error),
         }
     }
@@ -163,11 +177,12 @@ fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> i
 
 fn write_all(mut stream: &Stream, mut bytes: &[u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        stream.set_send_timeout(Some(remaining(deadline)?))?;
+        remaining(deadline)?;
         match stream.write(bytes) {
             Ok(0) => return Err(io::Error::new(io::ErrorKind::WriteZero, "Local connection stopped accepting data")),
             Ok(count) => bytes = &bytes[count..],
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {},
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
             Err(error) => return Err(error),
         }
     }
@@ -270,14 +285,38 @@ mod tests {
         let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
         let endpoint = server.endpoint.clone();
         let join = thread::spawn(move || {
-            let stream = server.listener.accept().unwrap();
+            let (stream, _) = server.listener.accept().unwrap();
+            configure(&stream).unwrap();
             let start = Instant::now();
-            assert!(read_frame::<Envelope>(&stream, start + Duration::from_millis(100)).is_err());
+            assert_eq!(read_frame::<Envelope>(&stream, start + Duration::from_millis(100)).err().unwrap().kind(), io::ErrorKind::TimedOut);
             assert!(start.elapsed() < Duration::from_secs(2));
         });
         let stream = endpoint.connect().unwrap();
         thread::sleep(Duration::from_millis(200));
         drop(stream);
         join.join().unwrap();
+    }
+
+    #[test]
+    fn repeated_requests_do_not_need_background_flush_workers() {
+        let directory = tempfile::tempdir().unwrap();
+        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
+        let endpoint = server.endpoint.clone();
+        let join = thread::spawn(move || {
+            for revision in 0..200 {
+                server.accept().unwrap().respond(&Response::success(Snapshot { revision, ..Snapshot::default() })).unwrap();
+            }
+        });
+        for revision in 0..200 {
+            assert_eq!(call_endpoint(&endpoint, &Request::Get).unwrap().snapshot.unwrap().revision, revision);
+        }
+        join.join().unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn endpoints_cannot_redirect_the_client_to_remote_hosts() {
+        let endpoint = Endpoint { protocol: 1, name: "192.0.2.1:1234".into(), token: "0".repeat(64), instance: "0".repeat(32) };
+        assert_eq!(endpoint.connect().err().unwrap().kind(), io::ErrorKind::PermissionDenied);
     }
 }
