@@ -12,7 +12,7 @@ jobs:
   normalize:
     if: github.repository == 'vincenthopf/SuperLight' && github.ref == 'refs/heads/rewrite/rust-v3.6'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -20,70 +20,65 @@ jobs:
         with:
           ref: rewrite/rust-v3.6
           fetch-depth: 0
-      - name: Apply scoped compiler and idle-loop corrections
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-          root = Path('crates/superlight-service/src')
-          replacements = {
-              'transport.rs': [('info.bus_type() == BusType::Bluetooth', 'matches!(info.bus_type(), BusType::Bluetooth)')],
-              'native/windows.rs': [('fn focus_window(window: HWND, pid: LPARAM) -> BOOL', 'fn focus_window(window: HWND, pid: LPARAM) -> i32')],
-              'native/linux.rs': [('desktop_exec(executable)', 'desktop_exec(&executable)')],
-          }
-          for name, pairs in replacements.items():
-              path = root / name
-              content = path.read_text()
-              for before, after in pairs:
-                  if before in content:
-                      assert content.count(before) == 1, name
-                      content = content.replace(before, after)
-                  else:
-                      assert after in content, f'{name}: expected correction no longer matches'
-              path.write_text(content)
-          path = root / 'native/macos.rs'
-          content = path.read_text()
-          content = re.sub(r'ffi::\{CStr,\s*c_void\}', 'ffi::c_void', content)
-          path.write_text(content)
-          path = root / 'native/linux.rs'
-          content = path.read_text()
-          if 'fn poll_timeout(' not in content:
-              helper = '''fn poll_timeout(connected: bool, suspended: bool, retry_in: Duration) -> i32 {
-              if connected || suspended { 2000 } else { retry_in.as_millis().clamp(1, 3000) as i32 }
-          }
-
-          '''
-              anchor = 'pub fn run(shared: Arc<Shared>) -> io::Result<()> {'
-              assert content.count(anchor) == 1
-              content = content.replace(anchor, helper + anchor)
-              pattern = r'let timeout = if input\.is_some\(\) \{\s*2000\s*\} else \{\s*retry\s*\.saturating_duration_since\(Instant::now\(\)\)\s*\.as_millis\(\)\s*\.clamp\(1, 3000\) as i32\s*\};'
-              content, count = re.subn(pattern, 'let timeout = poll_timeout(input.is_some(), shared.suspended.load(Ordering::Acquire), retry.saturating_duration_since(Instant::now()));', content)
-              assert count == 1, 'Linux timeout shape changed'
-              test = '''
-              #[test]
-              fn suspended_input_does_not_busy_poll_an_expired_retry_deadline() {
-                  assert_eq!(poll_timeout(false, true, Duration::ZERO), 2000);
-                  assert_eq!(poll_timeout(true, false, Duration::ZERO), 2000);
-                  assert_eq!(poll_timeout(false, false, Duration::from_secs(3)), 3000);
-                  assert_eq!(poll_timeout(false, false, Duration::ZERO), 1);
-              }
-          '''
-              index = content.rfind('}')
-              assert index > 0
-              content = content[:index] + test + content[index:]
-          path.write_text(content)
-      - name: Format workspace and lock dependencies
+      - name: Check restoration test before implementation
         shell: bash
         run: |
           set -euo pipefail
           rustup show
+          if ! grep -q 'pub fn restore_slot' crates/superlight-core/src/session.rs; then
+            if cargo test --locked -p superlight-core --test restore_reporting > /tmp/restore-before.log 2>&1; then
+              cat /tmp/restore-before.log
+              exit 1
+            fi
+            grep -q 'no method named.*restore_slot' /tmp/restore-before.log
+            tail -30 /tmp/restore-before.log
+          fi
+      - name: Add acknowledged restoration without changing shutdown fallback
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          path = Path('crates/superlight-core/src/session.rs')
+          content = path.read_text()
+          if 'pub fn restore_slot(' not in content:
+              anchor = '    pub fn undivert_slot(&mut self, slot: usize) -> Result<(), Error> {'
+              method = '''    pub fn restore_slot(&mut self, slot: usize, notify: &mut impl FnMut(Report)) -> Result<(), Error> {
+                  let Some(divert) = self.diverts.get(slot).copied().flatten() else { return Ok(()); };
+                  self.set_reporting(divert.cid, if divert.raw_xy { 0x22 } else { 0x02 }, notify)?;
+                  self.diverts[slot] = None;
+                  Ok(())
+              }
+
+          '''
+              assert content.count(anchor) == 1
+              content = content.replace(anchor, method + anchor)
+          path.write_text(content)
+          path = Path('crates/superlight-service/src/hardware.rs')
+          content = path.read_text()
+          before = 'self.session.undivert_slot(slot)?;'
+          after = 'self.session.restore_slot(slot, &mut |report| self.pump.process(report))?;'
+          if before in content:
+              assert content.count(before) == 1
+              content = content.replace(before, after)
+          else:
+              assert 'restore_slot' in content
+          path.write_text(content)
+      - name: Format and verify portable regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
           cargo fmt --all
-          cargo generate-lockfile
-          cargo fmt --all -- --check
+          cargo test --locked -p superlight-core
+          cargo test --locked -p superlight-ipc
+          cargo test --locked -p superlight-service --lib
+      - name: Commit verified corrections
+        shell: bash
+        run: |
+          set -euo pipefail
           git add Cargo.lock crates
           if ! git diff --cached --quiet; then
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'fix: reconcile native interfaces and avoid suspended input busy polling'
+            git commit -m 'fix(hid): consume restoration acknowledgements and preserve asynchronous input'
             git push origin HEAD:refs/heads/rewrite/rust-v3.6
           fi
