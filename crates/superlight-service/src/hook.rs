@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn cancellation_clears_drag_routing_without_replaying_a_stale_press() {
-        let (shared, _, mut hook) = setup();
+        let (shared, _receiver, mut hook) = setup();
         assert!(hook.button(0, true));
         assert_eq!(hook.dragged_button(0), Some(0));
         shared.release_all();
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn input_overload_fails_open_for_new_presses() {
-        let (shared, _, mut hook) = setup();
+        let (shared, _receiver, mut hook) = setup();
         for _ in 0..crate::shared::INPUT_CAPACITY { assert!(shared.emit(Input::Wake)); }
         assert!(!hook.button(0, true));
         assert!(!hook.button(0, false));
