@@ -382,7 +382,8 @@ impl Connected {
         }
         for slot in 0..3 {
             if !desired.diverts[slot] && self.session.diverts()[slot].is_some() {
-                self.session.undivert_slot(slot)?;
+                self.session
+                    .restore_slot(slot, &mut |report| self.pump.process(report))?;
                 self.pump.configure(*self.session.diverts());
                 self.session
                     .read_notification(Duration::from_millis(50), &mut |report| {

@@ -414,7 +414,7 @@ pub fn set_start_at_login(enabled: bool, executable: &Path) -> io::Result<()> {
             "[Desktop Entry]\nType=Application\nName=SuperLight\nExec={} --background\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
             desktop_exec(&executable)
         );
-        atomic_write(&path, content.as_bytes())
+        atomic_write(&path, content.as_bytes()).map(|_| ())
     } else {
         match std::fs::remove_file(path) {
             Ok(()) => Ok(()),

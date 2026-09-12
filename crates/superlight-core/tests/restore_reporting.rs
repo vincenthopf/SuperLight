@@ -28,7 +28,9 @@ impl Transport for Fake {
         if restoring && state.reject_restore {
             state.pending.push_back(vec![0x11, 2, 0xff, 7, 0x3a, 8]);
         } else {
-            state.pending.push_back(vec![0x11, 2, 7, 0x3a, report[4], report[5], report[6]]);
+            state
+                .pending
+                .push_back(vec![0x11, 2, 7, 0x3a, report[4], report[5], report[6]]);
         }
         Ok(())
     }
@@ -54,7 +56,9 @@ fn restoring_raw_motion_consumes_the_acknowledgement_and_delivers_interleaved_in
     let (mut session, state) = setup();
     session.divert_gesture(&[0xc3], &mut |_| {}).unwrap();
     let mut notifications = Vec::new();
-    session.restore_slot(0, &mut |report| notifications.push(report)).unwrap();
+    session
+        .restore_slot(0, &mut |report| notifications.push(report))
+        .unwrap();
     assert_eq!(notifications.len(), 1);
     assert_eq!(notifications[0].software, 0);
     assert!(session.diverts()[0].is_none());
@@ -66,9 +70,14 @@ fn restoring_raw_motion_consumes_the_acknowledgement_and_delivers_interleaved_in
 #[test]
 fn a_rejected_restore_keeps_the_diversion_for_shutdown_cleanup() {
     let (mut session, state) = setup();
-    session.divert_extra(hidpp::MODE_SHIFT_CID, &mut |_| {}).unwrap();
+    session
+        .divert_extra(hidpp::MODE_SHIFT_CID, &mut |_| {})
+        .unwrap();
     state.lock().unwrap().reject_restore = true;
-    assert_eq!(session.restore_slot(1, &mut |_| {}), Err(Error::Protocol(ProtocolError::Device(8))));
+    assert_eq!(
+        session.restore_slot(1, &mut |_| {}),
+        Err(Error::Protocol(ProtocolError::Device(8)))
+    );
     assert!(session.diverts()[1].is_some());
     drop(session);
     let state = state.lock().unwrap();

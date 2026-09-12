@@ -349,6 +349,19 @@ impl<T: Transport> Session<T> {
         Ok(())
     }
 
+    pub fn restore_slot(
+        &mut self,
+        slot: usize,
+        notify: &mut impl FnMut(Report),
+    ) -> Result<(), Error> {
+        let Some(divert) = self.diverts.get(slot).copied().flatten() else {
+            return Ok(());
+        };
+        self.set_reporting(divert.cid, if divert.raw_xy { 0x22 } else { 0x02 }, notify)?;
+        self.diverts[slot] = None;
+        Ok(())
+    }
+
     pub fn undivert_slot(&mut self, slot: usize) -> Result<(), Error> {
         let Some(divert) = self.diverts.get(slot).copied().flatten() else {
             return Ok(());
