@@ -1,0 +1,37 @@
+name: Rust source maintenance
+
+on:
+  push:
+    branches: [rewrite/rust-v3.6]
+    paths: [.github/workflows/rust-source-maintenance.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  normalize:
+    if: github.repository == 'vincenthopf/SuperLight' && github.ref == 'refs/heads/rewrite/rust-v3.6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: rewrite/rust-v3.6
+          fetch-depth: 0
+      - name: Format workspace and resolve dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup show
+          cargo fmt --all
+          cargo generate-lockfile
+          cargo fmt --all -- --check
+          git add Cargo.lock crates
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'style: format Rust sources and lock workspace dependencies'
+            git push origin HEAD:refs/heads/rewrite/rust-v3.6
+          fi
