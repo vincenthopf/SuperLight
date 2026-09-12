@@ -54,10 +54,8 @@ pub fn parse(raw: &[u8]) -> Option<Message<'_>> {
     if raw.len() < 4 || raw.len() > 64 { return None; }
     let offset = usize::from(matches!(raw[0], SHORT_ID | LONG_ID));
     Some(Message {
-        device: raw[offset],
-        feature: raw[offset + 1],
-        function: raw[offset + 2] >> 4,
-        software: raw[offset + 2] & 15,
+        device: raw[offset], feature: raw[offset + 1],
+        function: raw[offset + 2] >> 4, software: raw[offset + 2] & 15,
         params: &raw[offset + 3..],
     })
 }
@@ -72,14 +70,10 @@ pub fn encode(device: u8, feature: u8, function: u8, params: &[u8]) -> Result<[u
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ResponseMatch {
-    Reply,
-    Error(u8),
-    Unrelated,
-}
+pub enum ResponseMatch { Reply, Error(u8), Unrelated }
 
 pub fn match_response(message: Message<'_>, device: u8, feature: u8, function: u8) -> ResponseMatch {
-    if message.device != device { return ResponseMatch::Unrelated; }
+    if function > 15 || message.device != device { return ResponseMatch::Unrelated; }
     if matches!(message.feature, 0xff | 0x8f) {
         let echoed_feature = message.function << 4 | message.software;
         if echoed_feature == feature && message.params.len() >= 2 && message.params[0] == (function << 4 | SOFTWARE) {
@@ -90,9 +84,7 @@ pub fn match_response(message: Message<'_>, device: u8, feature: u8, function: u
     if message.feature == feature && message.software == SOFTWARE
         && (message.function == function || message.function == ((function + 1) & 15)) {
         ResponseMatch::Reply
-    } else {
-        ResponseMatch::Unrelated
-    }
+    } else { ResponseMatch::Unrelated }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -115,8 +107,7 @@ impl SmartShift {
         let valid = (1..=50).contains(&auto_disengage);
         Self {
             mode: if mode == 1 { ScrollMode::Freespin } else { ScrollMode::Ratchet },
-            enabled: mode != 1 && valid,
-            threshold: if valid { auto_disengage } else { 25 },
+            enabled: mode != 1 && valid, threshold: if valid { auto_disengage } else { 25 },
         }
     }
 
@@ -152,12 +143,8 @@ impl Control {
         if params.len() < 9 { return None; }
         let cid = u16::from_be_bytes([params[0], params[1]]);
         Some(Self {
-            index,
-            cid,
-            task: u16::from_be_bytes([params[2], params[3]]),
-            flags: u16::from_le_bytes([params[4], params[8]]),
-            mapping_flags: 0,
-            mapped_to: cid,
+            index, cid, task: u16::from_be_bytes([params[2], params[3]]),
+            flags: u16::from_le_bytes([params[4], params[8]]), mapping_flags: 0, mapped_to: cid,
         })
     }
 
@@ -190,10 +177,8 @@ pub fn signed_xy(params: &[u8]) -> Option<(i16, i16)> {
 }
 
 pub fn contains_cid(params: &[u8], cid: u16) -> bool {
-    params.chunks_exact(2)
-        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
-        .take_while(|value| *value != 0)
-        .any(|value| value == cid)
+    params.as_chunks::<2>().0.iter()
+        .map(|pair| u16::from_be_bytes(*pair)).take_while(|value| *value != 0).any(|value| value == cid)
 }
 
 pub fn transport_label(device_index: u8, product_id: u16) -> &'static str {
@@ -234,6 +219,8 @@ mod tests {
             assert_eq!(match_response(parse(&normal).unwrap(), 255, 3, function), ResponseMatch::Reply);
             assert_eq!(match_response(parse(&adjacent).unwrap(), 255, 3, function), ResponseMatch::Reply);
         }
+        let packet = encode(255, 3, 0, &[]).unwrap();
+        assert_eq!(match_response(parse(&packet).unwrap(), 255, 3, 255), ResponseMatch::Unrelated);
     }
 
     #[test]
