@@ -412,7 +412,7 @@ pub fn set_start_at_login(enabled: bool, executable: &Path) -> io::Result<()> {
         std::fs::create_dir_all(&directory)?;
         let content = format!(
             "[Desktop Entry]\nType=Application\nName=SuperLight\nExec={} --background\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
-            desktop_exec(executable)
+            desktop_exec(&executable)
         );
         atomic_write(&path, content.as_bytes())
     } else {
@@ -451,6 +451,14 @@ fn publish(
         permissions: permissions.clone(),
     }) {
         *previous = Some((ready, permissions));
+    }
+}
+
+fn poll_timeout(connected: bool, suspended: bool, retry_in: Duration) -> i32 {
+    if connected || suspended {
+        2000
+    } else {
+        retry_in.as_millis().clamp(1, 3000) as i32
     }
 }
 
@@ -592,14 +600,11 @@ pub fn run(shared: Arc<Shared>) -> io::Result<()> {
                 revents: 0,
             },
         ];
-        let timeout = if input.is_some() {
-            2000
-        } else {
-            retry
-                .saturating_duration_since(Instant::now())
-                .as_millis()
-                .clamp(1, 3000) as i32
-        };
+        let timeout = poll_timeout(
+            input.is_some(),
+            shared.suspended.load(Ordering::Acquire),
+            retry.saturating_duration_since(Instant::now()),
+        );
         let result = unsafe {
             libc::poll(
                 descriptors.as_mut_ptr(),
@@ -692,5 +697,13 @@ mod tests {
         );
         assert!(desktop_exec("a\"b").contains("\\\\\""));
         assert!(login::checked_executable(Path::new("bad\nExec=other")).is_err());
+    }
+
+    #[test]
+    fn suspended_input_does_not_busy_poll_an_expired_retry_deadline() {
+        assert_eq!(poll_timeout(false, true, Duration::ZERO), 2000);
+        assert_eq!(poll_timeout(true, false, Duration::ZERO), 2000);
+        assert_eq!(poll_timeout(false, false, Duration::from_secs(3)), 3000);
+        assert_eq!(poll_timeout(false, false, Duration::ZERO), 1);
     }
 }

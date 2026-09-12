@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{
     cell::{Cell, RefCell},
-    ffi::{CStr, c_void},
+    ffi::c_void,
     io,
     path::Path,
     ptr,

@@ -534,7 +534,7 @@ fn menu(window: HWND) {
     }
 }
 
-unsafe extern "system" fn focus_window(window: HWND, pid: LPARAM) -> BOOL {
+unsafe extern "system" fn focus_window(window: HWND, pid: LPARAM) -> i32 {
     unsafe {
         let mut actual = 0;
         GetWindowThreadProcessId(window, &mut actual);
