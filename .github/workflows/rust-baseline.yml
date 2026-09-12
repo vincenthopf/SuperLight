@@ -1,0 +1,27 @@
+name: v3.6 baseline
+
+on:
+  push:
+    branches: [rewrite/rust-v3.6]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: macos-14
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: TomBadash/Mouser
+          ref: 34d93f70b2a84e425698e0d3d748cae2c5d18911
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -p 'test_*.py' -v
