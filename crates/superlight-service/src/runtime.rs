@@ -318,9 +318,7 @@ impl Controller {
         }
         let foreground = native::foreground();
         let restricted = foreground.input_restricted;
-        if self.shared.restricted.swap(restricted, Ordering::AcqRel) != restricted && restricted {
-            self.shared.release_all();
-        }
+        self.shared.set_input_restricted(restricted);
         if foreground != self.foreground {
             self.foreground = foreground;
             let profile =

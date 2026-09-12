@@ -142,6 +142,16 @@ impl Shared {
         self.quit.load(Ordering::Acquire)
     }
 
+    pub fn set_input_restricted(&self, restricted: bool) {
+        if self.restricted.swap(restricted, Ordering::AcqRel) != restricted {
+            if restricted {
+                self.release_all();
+            }
+            self.generation.fetch_add(1, Ordering::AcqRel);
+            self.wake_hid();
+        }
+    }
+
     pub fn allowed(&self) -> bool {
         self.native_ready.load(Ordering::Acquire)
             && self.device_connected.load(Ordering::Acquire)

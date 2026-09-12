@@ -92,6 +92,7 @@ fn execute() -> io::Result<()> {
         }
         return Ok(());
     }
+    hidapi::HidApi::disable_device_discovery();
     superlight_service::run(options)
 }
 

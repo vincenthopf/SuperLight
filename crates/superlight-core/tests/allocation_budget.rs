@@ -53,7 +53,14 @@ static ALLOCATOR: Allocator = Allocator;
 #[test]
 fn one_million_hid_edges_allocate_no_memory_after_initialization() {
     let mut decoder = Notifications::new(2, 7);
-    decoder.configure([Some(Divert { cid: 0xc3, raw_xy: true }), None, None]);
+    decoder.configure([
+        Some(Divert {
+            cid: 0xc3,
+            raw_xy: true,
+        }),
+        None,
+        None,
+    ]);
     let mut router = Router::default();
     let mut wire = [0u8; 20];
     wire[..4].copy_from_slice(&[0x11, 2, 7, 0]);

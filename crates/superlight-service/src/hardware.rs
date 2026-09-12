@@ -249,7 +249,7 @@ fn probe<T: Transport>(
         }
         .into(),
         backend: if cfg!(target_os = "macos") {
-            "IOKit shared device"
+            candidate.backend()
         } else if cfg!(windows) {
             "Windows native HID"
         } else {
