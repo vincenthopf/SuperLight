@@ -77,7 +77,7 @@ struct ActionEditor: View {
                     .font(.title3).frame(width: 40, height: 40).background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(controlNames[model.selected]).font(.headline)
-                    Text(model.data.profiles[model.profile].name).font(.caption).foregroundStyle(.secondary)
+                    Text("Button assignment").font(.caption).foregroundStyle(.secondary)
                 }
             }
             Picker("Action", selection: Binding(get: { model.action }, set: { model.assign($0) })) {
@@ -85,8 +85,6 @@ struct ActionEditor: View {
                 if !model.actions.contains(where: { $0[1] == model.action }) { Text(model.action).tag(model.action) }
             }
             Button("Search actions or set shortcut…") { pickerOpen = true }
-            Text("Changes apply to this profile only. The other buttons keep their assignments.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if model.selected == 1 || (7...10).contains(model.selected) {
                 Divider()
                 Text("Hold and move").font(.subheadline.weight(.medium))
@@ -105,54 +103,124 @@ struct ActionEditor: View {
 }
 
 struct ActionChooser: View {
+    enum Mode: String, CaseIterable {
+        case action = "Action", shortcut = "Keyboard shortcut"
+    }
     @Bindable var model: ServiceModel
     @Environment(\.dismiss) var dismiss
+    @State private var mode = Mode.action
     @State private var query = ""
+    @State private var selection: String?
     @State private var shortcut = ""
     @State private var validation = ""
-    @FocusState private var searchFocused: Bool
+    @FocusState private var focused: Mode?
 
+    var matches: [String] {
+        model.actions.map { $0[1] }.filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }
+    }
+    var canAssign: Bool {
+        mode == .action ? selection.map { matches.contains($0) } == true : !shortcut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack { Text("Choose an action").font(.title2.weight(.semibold)); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
-            Text("\(controlNames[model.selected]) · \(model.data.profiles[model.profile].name)").foregroundStyle(.secondary)
-            TextField("Search actions", text: $query).textFieldStyle(.roundedBorder).focused($searchFocused).accessibilityLabel("Search actions")
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(model.actionGroups, id: \.0) { group in
-                        let matches = group.1.filter { query.isEmpty || $0.localizedCaseInsensitiveContains(query) }
-                        if !matches.isEmpty {
-                            Text(group.0.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            ForEach(matches, id: \.self) { action in
-                                Button { model.assign(action); dismiss() } label: {
-                                    HStack { Text(action); Spacer(); if model.action == action { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) } }.frame(minHeight: 32).contentShape(Rectangle())
-                                }.buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Assign \(controlNames[model.selected].lowercased())").font(.title2.weight(.semibold))
+                Text(model.data.profiles[model.profile].name).foregroundStyle(.secondary)
+            }
+            Picker("Assignment type", selection: $mode) {
+                ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented)
+            Group {
+                switch mode {
+                case .action:
+                    VStack(spacing: 12) {
+                        TextField("Search actions", text: $query).textFieldStyle(.roundedBorder).focused($focused, equals: .action).accessibilityLabel("Search actions")
+                            .onSubmit { if canAssign { assign() } }
+                        List(matches, id: \.self, selection: $selection) { action in
+                            HStack {
+                                Text(action)
+                                Spacer()
+                                if model.action == action { Image(systemName: "checkmark").accessibilityLabel("Current assignment") }
+                            }.padding(.vertical, 3).tag(action)
+                        }
+                        .listStyle(.inset)
+                        .overlay {
+                            if matches.isEmpty {
+                                ContentUnavailableView.search(text: query)
                             }
                         }
+                        .accessibilityLabel("Available actions")
                     }
-                    if !query.isEmpty && !model.actionGroups.flatMap(\.1).contains(where: { $0.localizedCaseInsensitiveContains(query) }) {
-                        Text("No matching actions. Try “tab” or “volume”.").foregroundStyle(.secondary)
+                case .shortcut:
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Keyboard shortcut").font(.headline)
+                        TextField("cmd+shift+p", text: $shortcut).textFieldStyle(.roundedBorder).focused($focused, equals: .shortcut)
+                            .accessibilityLabel("Keyboard shortcut")
+                            .onSubmit { if canAssign { assign() } }
+                        Text("Combine cmd, ctrl, alt or shift with a key. For example: cmd+shift+p.")
+                            .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Spacer()
                     }
-                }.padding(4)
-            }.frame(height: 250)
-            Divider()
-            Text("Custom shortcut").font(.headline)
-            HStack {
-                TextField("cmd+shift+p", text: $shortcut).textFieldStyle(.roundedBorder).accessibilityLabel("Custom shortcut")
-                    .onSubmit { useShortcut() }
-                Button("Use shortcut") { useShortcut() }.disabled(shortcut.isEmpty)
+                }
+            }.frame(height: 280)
+            if !validation.isEmpty {
+                Label(validation, systemImage: "exclamationmark.circle.fill").font(.callout).foregroundStyle(.red)
             }
-            Text(validation.isEmpty ? "Use cmd, ctrl, alt or shift, followed by a key. Saved shortcuts run through the Rust service." : validation)
-                .font(.caption).foregroundStyle(validation.isEmpty ? Color.secondary : Color.red)
-        }.padding(24).frame(width: 430).onAppear { searchFocused = true }
+            Divider()
+            HStack {
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Assign action") { assign() }.keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent).disabled(!canAssign)
+            }
+        }
+        .padding(24)
+        .frame(width: 460)
+        .onAppear {
+            if model.action.hasPrefix("custom:") {
+                mode = .shortcut
+                shortcut = String(model.action.dropFirst("custom:".count))
+            } else {
+                selection = model.action
+            }
+            focused = mode
+        }
+        .onChange(of: mode) { _, value in focused = value; validation = "" }
     }
 
-    func useShortcut() {
-        let normalized = shortcut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        do {
-            _ = try NativeBridge.call(["local": "validate_action", "action": "custom:" + normalized])
-            model.assign("custom:" + normalized)
+    func assign() {
+        guard canAssign else { return }
+        let action: String
+        switch mode {
+        case .shortcut:
+            action = "custom:" + shortcut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        case .action:
+            guard let selection else { return }
+            action = selection
+        }
+        if model.assign(action) {
             dismiss()
-        } catch { validation = error.localizedDescription }
+        } else {
+            validation = model.error ?? "The action could not be assigned."
+            model.error = nil
+        }
+    }
+}
+
+struct SettingSlider: View {
+    let title: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    var unit = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent(title) {
+                Text("\(Int(value))\(unit.isEmpty ? "" : " " + unit)").monospacedDigit().foregroundStyle(.secondary)
+            }
+            Slider(value: $value, in: range, step: step)
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int(value)) \(unit)")
+        }
     }
 }

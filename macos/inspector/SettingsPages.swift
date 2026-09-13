@@ -5,15 +5,14 @@ struct ScrollSettings: View {
     var body: some View {
         Form {
             Section("Pointer speed") {
-                LabeledContent("Sensitivity", value: "\(Int(model.data.dpi)) DPI")
-                Slider(value: $model.data.dpi, in: model.dpiBounds, step: 50) { Text("Pointer DPI") }
+                SettingSlider(title: "Sensitivity", value: $model.data.dpi, range: model.dpiBounds, step: 50, unit: "DPI")
                 HStack { ForEach([800, 1000, 1600, 2400], id: \.self) { value in Button("\(value)") { model.data.dpi = Double(value) }.disabled(!model.dpiBounds.contains(Double(value))) } }
                 TextField("DPI presets", text: $model.data.presets)
             }.disabled(!model.supports("supports_dpi"))
             Section("Scroll wheel") {
                 Toggle("SmartShift", isOn: $model.data.smartShift).disabled(!model.supports("supports_smart_shift"))
                 Text("Automatically switch between precise ratchet steps and free spin.").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $model.data.threshold, in: 1...50, step: 1) { Text("SmartShift threshold") }.disabled(!model.data.smartShift || !model.supports("supports_smart_shift"))
+                SettingSlider(title: "SmartShift threshold", value: $model.data.threshold, range: 1...50, step: 1).disabled(!model.data.smartShift || !model.supports("supports_smart_shift"))
                 Picker("Wheel mode", selection: $model.data.wheelMode) { Text("Ratchet").tag("ratchet"); Text("Free spin").tag("freespin") }.disabled(!model.supports("supports_smart_shift"))
                 Toggle("Invert vertical scrolling", isOn: $model.data.verticalInverted)
                 Toggle("Invert horizontal scrolling", isOn: $model.data.horizontalInverted)

@@ -25,7 +25,6 @@ struct InspectorView: View {
                         .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("SuperLight").font(.headline)
-                        Text("Mouse controls").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
                 }
@@ -33,7 +32,7 @@ struct InspectorView: View {
                 .padding(.top, 14)
                 .padding(.bottom, 10)
                 List(selection: $model.page) {
-                    Section("Workspace") {
+                    Section("Mouse") {
                         ForEach(Page.allCases, id: \.self) { page in
                             Label(page.rawValue, systemImage: page.icon).tag(page)
                         }
@@ -188,13 +187,13 @@ struct GeneralSettings: View {
             Section("Startup & appearance") {
                 Toggle("Start at login", isOn: $model.data.startAtLogin)
                 Picker("Appearance", selection: $model.theme) { ForEach(["Light", "Dark", "System"], id: \.self) { Text($0) } }
-                Text("Closing settings leaves the Rust service running. Save to apply startup and appearance changes.").font(.caption).foregroundStyle(.secondary)
+                Text("Closing settings keeps your mouse assignments running. Save to apply startup and appearance changes.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Gestures") {
-                Slider(value: $model.data.gestureThreshold, in: 10...300, step: 1) { Text("Distance threshold") }
-                Slider(value: $model.data.gestureDeadzone, in: 0...200, step: 1) { Text("Dead zone") }
-                Slider(value: $model.data.gestureTimeout, in: 100...10000, step: 100) { Text("Timeout (ms)") }
-                Slider(value: $model.data.gestureCooldown, in: 0...2000, step: 50) { Text("Cooldown (ms)") }
+                SettingSlider(title: "Distance threshold", value: $model.data.gestureThreshold, range: 10...300, step: 1, unit: "")
+                SettingSlider(title: "Dead zone", value: $model.data.gestureDeadzone, range: 0...200, step: 1, unit: "")
+                SettingSlider(title: "Timeout", value: $model.data.gestureTimeout, range: 100...10000, step: 100, unit: "ms")
+                SettingSlider(title: "Cooldown", value: $model.data.gestureCooldown, range: 0...2000, step: 50, unit: "ms")
             }.disabled(!model.supports("supports_gesture"))
             Section("Diagnostics") {
                 LabeledContent("Dropped events", value: String(model.snapshot["dropped_events"] as? Int ?? 0))

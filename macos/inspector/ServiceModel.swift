@@ -106,9 +106,6 @@ enum NativeBridge {
         if snapshot["hardware_pending"] as? Bool == true { return "Applying mouse settings…" }
         return "Mouse ready"
     }
-    var actionGroups: [(String, [String])] {
-        [("Actions", actions.map { $0[1] })]
-    }
     func supports(_ capability: String) -> Bool { device[capability] as? Bool == true }
     func supportedButton(_ index: Int) -> Bool {
         if index == 1 || (7...10).contains(index) { return supports("supports_gesture") }
@@ -218,13 +215,14 @@ enum NativeBridge {
         profile = next.profiles.firstIndex(where: { $0.id == selectedID }) ?? 0
         conflicted = false
     }
-    func assign(_ value: String) {
-        guard !data.profiles.isEmpty else { return }
+    @discardableResult func assign(_ value: String) -> Bool {
+        guard !data.profiles.isEmpty else { return false }
         let id = identifier(value)
         do {
             _ = try NativeBridge.call(["local": "validate_action", "action": id])
             data.profiles[profile].actions[selected] = label(id)
-        } catch { self.error = error.localizedDescription }
+            return true
+        } catch { self.error = error.localizedDescription; return false }
     }
     func addProfile(name: String, application: String) -> Bool {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
