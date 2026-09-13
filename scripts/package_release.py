@@ -60,7 +60,7 @@ def stage(source, destination, assets, system, version):
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": match.group(1),
             "CFBundleVersion": match.group(1),
-            "LSMinimumSystemVersion": "26.0",
+            "LSMinimumSystemVersion": "14.0",
             "LSUIElement": True,
             "NSHighResolutionCapable": True,
             "NSInputMonitoringUsageDescription": "SuperLight reads mouse input to apply your configured button and gesture mappings.",

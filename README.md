@@ -33,7 +33,7 @@ The rewrite covers the v3.6 behavior used by the application:
 - sleep, wake, reconnect and fail-open cleanup
 - migration of existing v1 through v9 configuration, including unknown fields
 
-macOS uses the native SwiftUI Inspector: a system sidebar, toolbar, inspector, forms and the original Mouser mouse artwork. Windows retains the Rust settings editor. The macOS application requires macOS 26 and Xcode 26 to build.
+macOS uses the native SwiftUI Inspector: a system sidebar, toolbar, inspector, forms and the original Mouser mouse artwork. Windows retains the Rust settings editor. The macOS application requires macOS 14 or later and Xcode 26 to build. It adopts native Liquid Glass on macOS 26 and standard native controls on earlier supported versions.
 
 ## Build
 

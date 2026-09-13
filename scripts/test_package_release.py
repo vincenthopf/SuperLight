@@ -36,7 +36,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(info["CFBundleExecutable"], "superlight")
             self.assertEqual(info["CFBundleShortVersionString"], "4.0.0")
             self.assertTrue(info["LSUIElement"])
-            self.assertEqual(info["LSMinimumSystemVersion"], "26.0")
+            self.assertEqual(info["LSMinimumSystemVersion"], "14.0")
             executable = bundle / "Contents/MacOS/superlight"
             if os.name != "nt":
                 self.assertTrue(executable.stat().st_mode & stat.S_IXUSR)

@@ -4,8 +4,8 @@ cd "$root"
 work="$root/.working/inspector/test-$(date +%Y%m%d-%H%M%S)-$$"
 mkdir -p "$work"
 case "$(uname -m)" in
-  arm64) rust_target=aarch64-apple-darwin; swift_target=arm64-apple-macosx26.0 ;;
-  x86_64) rust_target=x86_64-apple-darwin; swift_target=x86_64-apple-macosx26.0 ;;
+  arm64) rust_target=aarch64-apple-darwin; swift_target=arm64-apple-macosx14.0 ;;
+  x86_64) rust_target=x86_64-apple-darwin; swift_target=x86_64-apple-macosx14.0 ;;
 esac
 xcrun swiftc -parse-as-library -warnings-as-errors macos/inspector/ServiceModel.swift macos/inspector/tests/Integration.swift -import-objc-header macos/inspector/Bridge.h "${CARGO_TARGET_DIR:-$root/target}/$rust_target/release/libsuperlight_macos_bridge.a" -o "$work/integration-tests" -framework SwiftUI -framework AppKit -target "$swift_target"
 export SUPERLIGHT_CONFIG_DIR="$work/config"
