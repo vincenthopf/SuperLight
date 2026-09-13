@@ -178,3 +178,132 @@ impl Editor {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn snapshot(instance: &str, revision: u64) -> Snapshot {
+        Snapshot {
+            instance: instance.into(),
+            revision,
+            config: config::defaults(),
+            active_profile: "default".into(),
+            ..Snapshot::default()
+        }
+    }
+
+    #[test]
+    fn disconnected_editor_cannot_build_a_save_request() {
+        assert!(Editor::default().apply_request().is_err());
+    }
+
+    #[test]
+    fn polling_preserves_unsaved_changes_until_the_service_revision_changes() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 7));
+        editor.draft["settings"]["dpi"] = json!(2400);
+        editor.receive(snapshot("service-a", 7));
+        assert!(editor.dirty());
+        assert!(!editor.conflicted());
+        assert_eq!(editor.draft["settings"]["dpi"], 2400);
+        editor.receive(snapshot("service-a", 8));
+        assert!(editor.conflicted());
+        assert_eq!(editor.draft["settings"]["dpi"], 2400);
+        assert!(editor.apply_request().is_err());
+    }
+
+    #[test]
+    fn service_restart_invalidates_an_unsaved_revision() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 4));
+        editor.draft["settings"]["dpi"] = json!(1600);
+        editor.receive(snapshot("service-b", 4));
+        assert!(editor.conflicted());
+        assert!(editor.apply_request().is_err());
+    }
+
+    #[test]
+    fn explicit_reload_accepts_the_latest_revision() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 4));
+        editor.draft["settings"]["dpi"] = json!(1600);
+        editor.receive(snapshot("service-a", 5));
+        editor.reload().unwrap();
+        assert!(!editor.dirty());
+        assert!(!editor.conflicted());
+        let Request::Apply {
+            expected_revision, ..
+        } = editor.apply_request().unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(expected_revision, 5);
+    }
+
+    #[test]
+    fn unknown_fields_survive_editor_changes() {
+        let mut state = snapshot("service-a", 1);
+        state.config["future_extension"] = json!({"keep": [1, 2, 3]});
+        let mut editor = Editor::default();
+        editor.receive(state);
+        editor.draft["settings"]["dpi"] = json!(1600);
+        let Request::Apply { config, .. } = editor.apply_request().unwrap() else {
+            panic!()
+        };
+        assert_eq!(config["future_extension"], json!({"keep": [1, 2, 3]}));
+        assert_eq!(config["settings"]["dpi"], 1600);
+    }
+
+    #[test]
+    fn default_profile_is_immutable_but_new_profiles_are_independent() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 1));
+        assert!(editor.remove_profile("default").is_err());
+        let key = editor.add_profile("Browser").unwrap();
+        editor.draft["profiles"][&key]["mappings"]["middle"] = json!("copy");
+        assert_eq!(editor.draft["profiles"]["default"]["mappings"]["middle"], "none");
+        assert_eq!(editor.draft["profiles"][&key]["label"], "Browser");
+        editor.remove_profile(&key).unwrap();
+        assert_eq!(editor.selected_profile, "default");
+    }
+
+    #[test]
+    fn application_aliases_are_deduplicated_and_bounded() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 1));
+        let key = editor.add_profile("Browser").unwrap();
+        editor.selected_profile = key;
+        editor.set_applications("Firefox\nfirefox\norg.mozilla.firefox").unwrap();
+        assert_eq!(editor.applications(), "Firefox\norg.mozilla.firefox");
+        assert!(editor.set_applications(&"x\n".repeat(65)).is_err());
+    }
+
+    #[test]
+    fn invalid_shortcuts_are_rejected_before_saving() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 1));
+        assert!(editor.set_action(0, "custom:not_a_real_key").is_err());
+        assert!(editor.set_action(99, "copy").is_err());
+        editor.draft["profiles"]["default"]["mappings"]["middle"] = json!("custom:not_a_real_key");
+        assert!(editor.apply_request().is_err());
+    }
+
+    #[test]
+    fn successful_save_replaces_the_editor_baseline() {
+        let mut editor = Editor::default();
+        editor.receive(snapshot("service-a", 1));
+        editor.draft["settings"]["dpi"] = json!(1600);
+        let mut saved = snapshot("service-a", 2);
+        saved.config = editor.draft.clone();
+        editor.saved(saved);
+        assert!(!editor.dirty());
+        let Request::Apply {
+            expected_revision, ..
+        } = editor.apply_request().unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(expected_revision, 2);
+    }
+}
