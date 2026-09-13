@@ -2,17 +2,14 @@
 pub enum Platform {
     MacOs,
     Windows,
-    Linux,
 }
 
 impl Platform {
     pub const fn current() -> Self {
         if cfg!(target_os = "macos") {
             Self::MacOs
-        } else if cfg!(target_os = "windows") {
-            Self::Windows
         } else {
-            Self::Linux
+            Self::Windows
         }
     }
 }
@@ -304,35 +301,34 @@ pub fn key_code(name: &str, platform: Platform) -> Option<u16> {
     let column = match platform {
         Platform::MacOs => 0,
         Platform::Windows => 1,
-        Platform::Linux => 2,
     };
     let codes = match name {
-        "ctrl" => [0x3b, 0x11, 29],
-        "shift" => [0x38, 0x10, 42],
-        "alt" => [0x3a, 0x12, 56],
-        "super" => [0x37, 0x5b, 125],
-        "tab" => [0x30, 9, 15],
-        "space" => [0x31, 32, 57],
-        "enter" => [0x24, 13, 28],
-        "esc" => [0x35, 27, 1],
-        "backspace" => [0x33, 8, 14],
-        "delete" => [0x75, 46, 111],
-        "left" => [0x7b, 37, 105],
-        "right" => [0x7c, 39, 106],
-        "up" => [0x7e, 38, 103],
-        "down" => [0x7d, 40, 108],
-        "pageup" => [0x74, 33, 104],
-        "pagedown" => [0x79, 34, 109],
-        "home" => [0x73, 36, 102],
-        "end" => [0x77, 35, 107],
-        "[" => [0x21, 0xdb, 26],
-        "]" => [0x1e, 0xdd, 27],
-        "volumeup" if platform != Platform::MacOs => [0, 0xaf, 115],
-        "volumedown" if platform != Platform::MacOs => [0, 0xae, 114],
-        "mute" if platform != Platform::MacOs => [0, 0xad, 113],
-        "playpause" if platform != Platform::MacOs => [0, 0xb3, 164],
-        "nexttrack" if platform != Platform::MacOs => [0, 0xb0, 163],
-        "prevtrack" if platform != Platform::MacOs => [0, 0xb1, 165],
+        "ctrl" => [0x3b, 0x11],
+        "shift" => [0x38, 0x10],
+        "alt" => [0x3a, 0x12],
+        "super" => [0x37, 0x5b],
+        "tab" => [0x30, 9],
+        "space" => [0x31, 32],
+        "enter" => [0x24, 13],
+        "esc" => [0x35, 27],
+        "backspace" => [0x33, 8],
+        "delete" => [0x75, 46],
+        "left" => [0x7b, 37],
+        "right" => [0x7c, 39],
+        "up" => [0x7e, 38],
+        "down" => [0x7d, 40],
+        "pageup" => [0x74, 33],
+        "pagedown" => [0x79, 34],
+        "home" => [0x73, 36],
+        "end" => [0x77, 35],
+        "[" => [0x21, 0xdb],
+        "]" => [0x1e, 0xdd],
+        "volumeup" if platform != Platform::MacOs => [0, 0xaf],
+        "volumedown" if platform != Platform::MacOs => [0, 0xae],
+        "mute" if platform != Platform::MacOs => [0, 0xad],
+        "playpause" if platform != Platform::MacOs => [0, 0xb3],
+        "nexttrack" if platform != Platform::MacOs => [0, 0xb0],
+        "prevtrack" if platform != Platform::MacOs => [0, 0xb1],
         _ => {
             if name.len() == 1 {
                 let byte = name.as_bytes()[0];
@@ -342,17 +338,7 @@ pub fn key_code(name: &str, platform: Platform) -> Option<u16> {
                         0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17,
                         32, 9, 13, 7, 16, 6,
                     ];
-                    let linux = [
-                        30, 48, 46, 32, 18, 33, 34, 35, 23, 36, 37, 38, 50, 49, 24, 25, 16, 19, 31,
-                        20, 22, 47, 17, 45, 21, 44,
-                    ];
-                    return Some(
-                        [
-                            mac[index],
-                            u16::from(byte.to_ascii_uppercase()),
-                            linux[index],
-                        ][column],
-                    );
+                    return Some([mac[index], u16::from(byte.to_ascii_uppercase())][column]);
                 }
                 if byte.is_ascii_digit() {
                     let index = usize::from(byte - b'0');
@@ -360,7 +346,6 @@ pub fn key_code(name: &str, platform: Platform) -> Option<u16> {
                         [
                             [29, 18, 19, 20, 21, 23, 22, 26, 28, 25][index],
                             u16::from(byte),
-                            [11, 2, 3, 4, 5, 6, 7, 8, 9, 10][index],
                         ][column],
                     );
                 }
@@ -375,7 +360,6 @@ pub fn key_code(name: &str, platform: Platform) -> Option<u16> {
                     [
                         [122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111][index],
                         (0x70 + index) as u16,
-                        [59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 87, 88][index],
                     ][column],
                 );
             }
@@ -391,7 +375,7 @@ mod tests {
 
     #[test]
     fn every_builtin_compiles_on_all_platforms() {
-        for platform in [Platform::MacOs, Platform::Windows, Platform::Linux] {
+        for platform in [Platform::MacOs, Platform::Windows] {
             for (id, _) in ACTIONS {
                 assert!(Action::parse(id, platform).is_ok(), "{id}");
             }
@@ -400,7 +384,7 @@ mod tests {
 
     #[test]
     fn aliases_match_canonical_keys_on_all_platforms() {
-        for platform in [Platform::MacOs, Platform::Windows, Platform::Linux] {
+        for platform in [Platform::MacOs, Platform::Windows] {
             for (alias, canonical) in [
                 ("command", "super"),
                 ("win", "super"),
@@ -430,7 +414,7 @@ mod tests {
     fn shortcuts_are_bounded_and_invalid_names_are_reported() {
         assert!(Chord::parse("", Platform::MacOs).is_err());
         assert!(Chord::parse("ctrl+notakey", Platform::Windows).is_err());
-        assert!(Chord::parse("a+b+c+d+e+f+g+h+i", Platform::Linux).is_err());
+        assert!(Chord::parse("a+b+c+d+e+f+g+h+i", Platform::Windows).is_err());
         assert!(Action::parse("unknown", Platform::MacOs).is_err());
     }
 

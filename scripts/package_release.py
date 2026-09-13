@@ -14,6 +14,27 @@ import tomllib
 import zipfile
 
 
+def executable_architecture(path, system):
+    with path.open("rb") as binary:
+        header = binary.read(64)
+        if system == "Darwin":
+            if header[:4] != b"\xcf\xfa\xed\xfe":
+                raise ValueError(f"Expected a native Mach-O executable: {path}")
+            machine = int.from_bytes(header[4:8], "little")
+            architecture = {0x0100000C: "arm64"}.get(machine)
+        else:
+            if header[:2] != b"MZ" or len(header) < 64:
+                raise ValueError(f"Expected a Windows executable: {path}")
+            binary.seek(int.from_bytes(header[60:64], "little"))
+            pe = binary.read(6)
+            if pe[:4] != b"PE\0\0":
+                raise ValueError(f"Invalid Windows executable: {path}")
+            architecture = {0x8664: "x64", 0xAA64: "arm64"}.get(int.from_bytes(pe[4:6], "little"))
+    if architecture is None:
+        raise ValueError(f"Unsupported executable architecture: {path}")
+    return architecture
+
+
 def stage(source, destination, assets, system, version):
     if system not in ("Darwin", "Windows"):
         raise ValueError(f"Unsupported platform: {system}")
@@ -125,19 +146,24 @@ def dependency_licenses(root, destination):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--binaries", type=pathlib.Path, default=pathlib.Path("target/release"))
+    parser.add_argument("--architecture", choices=["arm64", "x64"])
     parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("dist"))
     arguments = parser.parse_args()
     root = pathlib.Path(__file__).resolve().parents[1]
     system = platform.system()
     if system not in ("Darwin", "Windows"):
         raise SystemExit("Release packages support macOS and Windows only")
-    architecture = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "x64", "amd64": "x64"}.get(platform.machine().lower())
-    if architecture is None:
-        raise SystemExit("The current CPU architecture is not supported by release packaging")
+    suffix = ".exe" if system == "Windows" else ""
+    architectures = {executable_architecture(arguments.binaries / (name + suffix), system) for name in ("superlight", "superlight-ui")}
+    if len(architectures) != 1:
+        raise SystemExit("Service and settings executables have different architectures")
+    architecture = architectures.pop()
+    if arguments.architecture and architecture != arguments.architecture:
+        raise SystemExit(f"Expected {arguments.architecture} executables, found {architecture}")
     version = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["version"]
     target = arguments.output.resolve()
     target.mkdir(parents=True, exist_ok=True)
-    label = {"Darwin": "macOS", "Windows": "Windows", "Linux": "Linux"}[system]
+    label = {"Darwin": "macOS", "Windows": "Windows"}[system]
     output = target / f"SuperLight-{version}-{label}-{architecture}.zip"
     if output.exists() or output.with_suffix(".zip.sha256").exists():
         raise FileExistsError(f"The release artifact already exists: {output}")
@@ -146,10 +172,7 @@ def main():
         assets = temporary / "assets"
         assets.mkdir()
         shutil.copyfile(root / "LICENSE", assets / "LICENSE")
-        for filename in ("README.md", "docs/RUST_REWRITE.md"):
-            path = root / filename
-            if path.exists():
-                shutil.copyfile(path, assets / path.name)
+        shutil.copyfile(root / "README.md", assets / "README.md")
         if system == "Darwin":
             for image in ("AppIcon.icns", "mouse.png", "mouse_mx_anywhere_3s.png", "mx_vertical.png"):
                 shutil.copyfile(root / "images" / image, assets / image)
@@ -161,7 +184,7 @@ def main():
             subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(bundle)], check=True, timeout=60)
         archive(bundle, output)
     digest = hashlib.sha256(output.read_bytes()).hexdigest()
-    with output.with_suffix(".zip.sha256").open("x", encoding="utf-8") as checksum:
+    with output.with_suffix(".zip.sha256").open("x", encoding="utf-8", newline="") as checksum:
         checksum.write(f"{digest}  {output.name}\n")
     print(json.dumps({"archive": str(output), "sha256": digest, "bytes": output.stat().st_size, "signing": "ad-hoc, not notarized" if system == "Darwin" else "unsigned", "version": version, "architecture": architecture}))
 

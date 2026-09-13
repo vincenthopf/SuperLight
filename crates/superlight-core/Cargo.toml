@@ -8,7 +8,3 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
-
-[[bin]]
-name = "superlight-contract"
-path = "src/bin/contract.rs"

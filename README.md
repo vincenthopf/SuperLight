@@ -1,136 +1,42 @@
 # SuperLight
 
-SuperLight is a native Rust Logitech HID++ mouse remapper for macOS and Windows. This rewrite targets the behavior available in upstream Mouser v3.6.0 while replacing the Python, Qt and PyInstaller runtime with a small always-on service and an on-demand native settings process.
+Native Logitech mouse remapping for macOS Apple Silicon and Windows x64/ARM64.
 
-The compatibility reference is `TomBadash/Mouser@34d93f70b2a84e425698e0d3d748cae2c5d18911`.
-
-## Design
-
-`superlight` owns HID++, input interception, remapping, configuration and local IPC. `superlight-ui` is a separate settings process. Closing the settings window releases its GUI memory without stopping mouse remapping.
-
-The service uses bounded queues, fixed-size input buffers, atomic policy swaps and explicit release-on-error behavior. HID++ writes are restricted to discovered Logitech mouse capabilities. Receiver slots are correlated with replies before configuration writes are allowed.
-
-No telemetry, cloud service, web runtime or Logitech account is used.
-
-## v3.6 compatibility target
-
-The rewrite covers the v3.6 behavior used by the application:
-
-- Logitech HID++ Bluetooth and receiver discovery
-- Logi Bolt receiver slots
-- button remapping
-- horizontal wheel actions and scroll inversion
-- gesture button and RawXY gestures
-- application profiles
-- custom shortcuts
-- media and desktop actions
-- DPI read/write and DPI cycling
-- SmartShift and ratchet/free-spin switching
-- battery status
-- start at login
-- macOS Accessibility/Input Monitoring handling
-- macOS trackpad filtering
-- sleep, wake, reconnect and fail-open cleanup
-- migration of existing v1 through v9 configuration, including unknown fields
-
-macOS uses the native SwiftUI Inspector: a system sidebar, toolbar, inspector, forms and the original Mouser mouse artwork. Windows retains the Rust settings editor. The macOS application requires macOS 14 or later and Xcode 26 to build. It adopts native Liquid Glass on macOS 26 and standard native controls on earlier supported versions.
+- Rust background service for HID++, input, remapping and configuration.
+- Native SwiftUI settings app on macOS.
+- Local-only operation. No account, telemetry or cloud dependency.
 
 ## Build
 
-Rust `1.98.1` is pinned in `rust-toolchain.toml`.
+Rust is pinned by `rust-toolchain.toml`.
 
-```bash
+```sh
 cargo build --locked --release -p superlight-service -p superlight-ui --bins
 ```
 
-On macOS, install a local development build at a stable path before granting permissions:
+On macOS, use Xcode 26 or newer:
 
-```bash
+```sh
+bash macos/inspector/build.sh
 bash macos/inspector/install.sh
 ```
 
-This creates `~/Applications/SuperLight.app`. It refuses to replace an existing installation. Avoid granting permissions to timestamped scratch builds: macOS may treat each location or changed ad-hoc signature as a different app.
+The installer creates `~/Applications/SuperLight.app` and refuses to replace an existing installation. Grant it Accessibility and Input Monitoring in System Settings.
 
-To build the native settings executable without installing:
+## Development checks
 
-```bash
-bash macos/inspector/build.sh
-cp target/native-macos/superlight-ui target/release/superlight-ui
-```
-
-Use `scripts/package_release.py --binaries target/native-macos` to package the native macOS pair with its required artwork.
-
-Run the service:
-
-```bash
-target/release/superlight
-```
-
-Open settings while the service is running:
-
-```bash
-target/release/superlight --settings
-```
-
-Useful service commands:
-
-```text
---background
---headless
---settings
---status
---apply FILE
---pause
---resume
---reconnect
---refresh
---permissions
---quit
---version
-```
-
-## Tests
-
-The original repository already had tests. Before the rewrite, all 261 upstream v3.6.0 tests passed on the pinned compatibility commit. `compatibility/test_v36.py` characterizes the original implementation and differential CI runs the same contracts against Rust.
-
-Run the Rust suite:
-
-```bash
-cargo test --locked --workspace --all-targets
-cargo clippy --locked --workspace --all-targets -- -D warnings
+```sh
 cargo fmt --all -- --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo test --locked --workspace --all-targets
 ```
 
-The GitHub Actions matrix runs macOS Apple Silicon, macOS Intel, Windows and Linux. It also checks service lifecycle behavior without hardware, renders the settings UI on Linux, creates optimized binaries and records idle resource measurements.
+## Releases
 
-Real Logitech hardware is still required before calling a release hardware-verified. CI cannot prove Bluetooth/Bolt reconnect behavior, physical button diversion or permission recovery without attached devices.
+Push a version tag matching the workspace version, such as `v4.0.0-alpha.1`. GitHub Actions builds macOS Apple Silicon, Windows x64 and Windows ARM64 packages, includes SHA-256 checksums, and publishes a GitHub release. Tags containing a hyphen are prereleases.
 
-## Platform setup
-
-### macOS
-
-Allow SuperLight in System Settings > Privacy & Security > Accessibility and Input Monitoring. The release bundle uses a menu-bar service and a separate settings executable.
-
-### Windows
-
-SuperLight uses native low-level mouse input and `SendInput`. A non-elevated process intentionally does not control elevated applications or secure desktops.
-
-Linux is no longer a supported release target. Its existing core code remains for reference.
-
-## Packaging
-
-Build first, then run:
-
-```bash
-python scripts/package_release.py --output dist
-```
-
-The package contains only the two native executables, required platform assets, this documentation, the MIT license and dependency license notices. Release archives include SHA-256 checksums. macOS local packages are ad-hoc signed unless a distribution signing/notarization process is added externally.
-
-## Rewrite evidence and risk log
-
-See `docs/RUST_REWRITE.md` for the immutable baseline, compatibility boundaries, automated evidence and remaining physical-hardware release gates.
+macOS packages are ad-hoc signed. Distribution signing and notarization require Apple credentials.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. Original Mouser attribution is preserved in `LICENSE`.

@@ -1,7 +1,0 @@
-KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", TAG+="uaccess"
-KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="0003:046D:*", TAG+="uaccess"
-KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="0005:046D:*", TAG+="uaccess"
-KERNEL=="event*", SUBSYSTEM=="input", ATTRS{idVendor}=="046d", TAG+="uaccess"
-KERNEL=="event*", SUBSYSTEM=="input", KERNELS=="0003:046D:*", TAG+="uaccess"
-KERNEL=="event*", SUBSYSTEM=="input", KERNELS=="0005:046D:*", TAG+="uaccess"
-KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"
