@@ -44,7 +44,8 @@
           ],
           "evidence": "User-reported functional checks and local service status. Other transports and Windows remain unverified."
         }
-      ]
+      ],
+      "automated_smoke_evidence": "compatibility/evidence/2026-09-14-mx-master-3s-bluetooth.json"
     },
     {
       "model": "mx_master_3",
