@@ -59,7 +59,7 @@ jobs:
           restore-keys: rust-${{ matrix.os }}-${{ runner.arch }}-
       - name: Install Linux display dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev xvfb
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-dev libxkbcommon-x11-0 libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev xvfb
       - name: Compiler version
         run: rustup show
       - name: Check formatting
