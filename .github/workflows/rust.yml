@@ -11,6 +11,7 @@ on:
       - compatibility/**
       - scripts/**
       - packaging/**
+      - images/**
       - .github/workflows/rust.yml
   pull_request:
 
@@ -28,7 +29,7 @@ jobs:
       matrix:
         os: [macos-14, macos-15-intel, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       QT_QPA_PLATFORM: offscreen
       CARGO_TERM_COLOR: never
@@ -63,6 +64,12 @@ jobs:
         run: rustup show
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Enforce comment-free Rust source
+        shell: bash
+        run: |
+          if grep -R -nE '^[[:space:]]*(//|/\*|\*)' crates --include='*.rs'; then
+            exit 1
+          fi
       - name: Test native service before GUI compilation
         shell: bash
         run: |
@@ -82,6 +89,8 @@ jobs:
           tail -20 evidence/workspace-tests.log
       - name: Static checks
         run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Test release packager
+        run: python -m unittest scripts/test_package_release.py
       - name: Install reference and measurement dependencies
         run: python -m pip install hidapi PySide6 Pillow psutil==7.2.2
       - name: Differential v3.6 contracts
@@ -103,6 +112,8 @@ jobs:
         run: xvfb-run -a timeout 30 target/debug/superlight-ui --smoke-test
       - name: Build optimized executables
         run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
+      - name: Build release package
+        run: python scripts/package_release.py --output package-smoke
       - name: Measure isolated service memory and idle CPU
         shell: bash
         run: |
@@ -123,7 +134,7 @@ jobs:
           pathlib.Path('evidence/binaries.json').write_text(json.dumps(report, indent=2) + '\n')
           print(json.dumps(report, indent=2))
           PY
-      - name: Upload optimized executables
+      - name: Upload optimized executables and package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: superlight-${{ matrix.os }}-${{ runner.arch }}
@@ -132,6 +143,8 @@ jobs:
             target/release/superlight.exe
             target/release/superlight-ui
             target/release/superlight-ui.exe
+            package-smoke/*.zip
+            package-smoke/*.sha256
             LICENSE
           if-no-files-found: error
           retention-days: 14
