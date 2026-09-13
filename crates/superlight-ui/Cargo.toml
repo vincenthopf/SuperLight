@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[lints.clippy]
+collapsible_if = "allow"
+
 [features]
 default = ["desktop"]
 desktop = ["dep:eframe", "dep:image"]
