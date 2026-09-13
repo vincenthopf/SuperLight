@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ScrollSettings: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     var body: some View {
         Form {
             Section("Pointer speed") {
@@ -27,7 +27,7 @@ struct ScrollSettings: View {
 }
 
 struct ProfileSettings: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     @State private var adding = false
     @State private var deleting = false
     @State private var name = ""

@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 import AppKit
 
 let controlNames = ["Middle click", "Thumb gesture", "Back", "Forward", "Scroll left", "Scroll right", "Wheel mode", "Gesture left", "Gesture right", "Gesture up", "Gesture down", "DPI button"]
@@ -56,26 +57,28 @@ enum NativeBridge {
     }
 }
 
-@MainActor final class ServiceModel: ObservableObject {
-    @Published var data = SettingsData()
-    @Published var baseline = SettingsData()
-    @Published var page = Page.buttons
-    @Published var selected = 0
-    @Published var profile = 0
-    @Published var theme = "System"
-    @Published var message = "Connecting to the service…"
-    @Published var error: String?
-    @Published var connected = false
-    @Published var saving = false
-    @Published var busy = false
-    @Published var conflicted = false
-    @Published var snapshot: [String: Any] = [:]
-    @Published var actions: [[String]] = []
+@MainActor @Observable final class ServiceModel {
+    var data = SettingsData()
+    var baseline = SettingsData()
+    var page = Page.buttons
+    var selected = 0
+    var profile = 0
+    var theme = "System"
+    var message = "Connecting to the service…"
+    var error: String?
+    var connected = false
+    var saving = false
+    var busy = false
+    var conflicted = false
+    var snapshot: [String: Any] = [:]
+    var actions: [[String]] = []
     private var baselineConfig: [String: Any] = [:]
     private var revision: UInt64?
     private var instance: String?
     private var baselineTheme = "System"
     private let queue = DispatchQueue(label: "io.superlight.settings-ipc", qos: .userInitiated)
+    @ObservationIgnored private var requestInFlight = false
+    @ObservationIgnored private var pendingRequest: ([String: Any], ([String: Any]) -> Void)?
     var serviceProcess: Process?
     private var attemptedStart = false
 
@@ -129,23 +132,34 @@ enum NativeBridge {
         request(["request": payload]) { response in self.accept(response) }
     }
     private func request(_ request: [String: Any], completion: @escaping ([String: Any]) -> Void) {
-        guard !busy else { return }
-        busy = true
+        let polling = (request["request"] as? [String: Any])?["command"] as? String == "get"
+        if requestInFlight {
+            guard !polling, pendingRequest == nil else { return }
+            pendingRequest = (request, completion)
+            busy = true
+            return
+        }
+        requestInFlight = true
+        if !polling { busy = true }
         queue.async {
             let result = Result { try NativeBridge.call(request) }
             DispatchQueue.main.async {
-                self.busy = false
+                self.requestInFlight = false
+                if !polling { self.busy = false }
                 switch result {
                 case .success(let response): completion(response)
                 case .failure(let failure):
                     if request["local"] == nil { self.connected = false }
                     self.message = failure.localizedDescription
-                    if self.saving || (request["request"] as? [String: Any])?["command"] as? String != "get" { self.error = failure.localizedDescription }
-                    self.saving = false
-                    if (request["request"] as? [String: Any])?["command"] as? String == "get" && !self.attemptedStart {
+                    if !polling { self.error = failure.localizedDescription; self.saving = false }
+                    if polling && !self.attemptedStart {
                         self.attemptedStart = true
                         self.startService()
                     }
+                }
+                if let pending = self.pendingRequest {
+                    self.pendingRequest = nil
+                    self.request(pending.0, completion: pending.1)
                 }
             }
         }
@@ -156,17 +170,19 @@ enum NativeBridge {
               let instance = state["instance"] as? String else {
             connected = false
             error = "Unsupported or incomplete service response."
-            saving = false
+            if saved { saving = false }
             return
         }
-        connected = true
-        snapshot = state
-        if !dirty || saved || self.revision == nil {
+        if !connected { connected = true }
+        let changed = !NSDictionary(dictionary: snapshot).isEqual(to: state)
+        if changed { snapshot = state }
+        let configurationChanged = revision != self.revision || instance != self.instance
+        if saved || self.revision == nil || (!dirty && configurationChanged) {
             replace(config: config, revision: revision, instance: instance)
-        } else { conflicted = revision != self.revision || instance != self.instance }
-        saving = false
-        if !saved && !dirty { message = status }
-        if saved { message = "Changes saved" }
+        } else if dirty { conflicted = configurationChanged }
+        if saved { saving = false }
+        if !saved && !dirty && message != status { message = status }
+        if saved && message != "Changes saved" { message = "Changes saved" }
     }
     private func replace(config: [String: Any], revision: UInt64, instance: String) {
         guard let profiles = config["profiles"] as? [String: [String: Any]], profiles["default"] != nil,
@@ -191,9 +207,10 @@ enum NativeBridge {
         next.gestureDeadzone = settings["gesture_deadzone"] as? Double ?? 40
         next.gestureTimeout = settings["gesture_timeout_ms"] as? Double ?? 3000
         next.gestureCooldown = settings["gesture_cooldown_ms"] as? Double ?? 500
-        data = next
-        baseline = next
-        theme = (settings["appearance_mode"] as? String ?? "system").capitalized
+        if data != next { data = next }
+        if baseline != next { baseline = next }
+        let nextTheme = (settings["appearance_mode"] as? String ?? "system").capitalized
+        if theme != nextTheme { theme = nextTheme }
         baselineTheme = theme
         baselineConfig = config
         self.revision = revision

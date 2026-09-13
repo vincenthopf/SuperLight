@@ -32,12 +32,7 @@ import SwiftUI
         configureMenus()
         NSApp.activate(ignoringOtherApps: true)
         model.start()
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, self.window.isVisible, !self.window.isMiniaturized else { return }
-                self.model.refresh()
-            }
-        }
+        updateRefreshTimer()
     }
     func configureMenus() {
         let menu = NSMenu()
@@ -66,6 +61,25 @@ import SwiftUI
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool { mayClose() }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply { window == nil || !window.isVisible || mayClose() ? .terminateNow : .terminateCancel }
+    func updateRefreshTimer() {
+        guard window != nil, model != nil else { return }
+        guard window.isVisible, !window.isMiniaturized, !NSApp.isHidden, window.occlusionState.contains(.visible) else {
+            timer?.invalidate()
+            timer = nil
+            return
+        }
+        guard timer == nil else { return }
+        model.refresh()
+        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.model.refresh() }
+        }
+    }
+    func windowDidChangeOcclusionState(_ notification: Notification) { updateRefreshTimer() }
+    func windowDidMiniaturize(_ notification: Notification) { updateRefreshTimer() }
+    func windowDidDeminiaturize(_ notification: Notification) { updateRefreshTimer() }
+    func applicationDidHide(_ notification: Notification) { updateRefreshTimer() }
+    func applicationDidUnhide(_ notification: Notification) { updateRefreshTimer() }
+    func applicationDidBecomeActive(_ notification: Notification) { updateRefreshTimer() }
     func applicationWillTerminate(_ notification: Notification) { timer?.invalidate() }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }

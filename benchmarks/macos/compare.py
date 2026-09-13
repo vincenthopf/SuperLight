@@ -49,7 +49,10 @@ def stop(bundle, executable, env, child=None):
     if executable.name == "superlight":
         subprocess.run([str(executable), "--quit"], env=env, capture_output=True, timeout=10)
     for pid in app_pids(bundle):
-        os.kill(pid, signal.SIGTERM)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
     deadline = time.monotonic() + 10
     while app_pids(bundle) and time.monotonic() < deadline:
         time.sleep(0.1)
