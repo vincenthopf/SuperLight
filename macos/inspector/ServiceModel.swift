@@ -77,6 +77,7 @@ enum NativeBridge {
     private var baselineTheme = "System"
     private let queue = DispatchQueue(label: "io.superlight.settings-ipc", qos: .userInitiated)
     var serviceProcess: Process?
+    private var attemptedStart = false
 
     var dirty: Bool { data != baseline || theme != baselineTheme }
     var scheme: ColorScheme? { theme == "System" ? nil : theme == "Dark" ? .dark : .light }
@@ -135,6 +136,10 @@ enum NativeBridge {
                     self.message = failure.localizedDescription
                     if self.saving || (request["request"] as? [String: Any])?["command"] as? String != "get" { self.error = failure.localizedDescription }
                     self.saving = false
+                    if (request["request"] as? [String: Any])?["command"] as? String == "get" && !self.attemptedStart {
+                        self.attemptedStart = true
+                        self.startService()
+                    }
                 }
             }
         }
@@ -154,6 +159,7 @@ enum NativeBridge {
             replace(config: config, revision: revision, instance: instance)
         } else { conflicted = revision != self.revision || instance != self.instance }
         saving = false
+        if !saved && !dirty { message = status }
         if saved { message = "Configuration saved. " + status }
     }
     private func replace(config: [String: Any], revision: UInt64, instance: String) {
@@ -222,6 +228,7 @@ enum NativeBridge {
             stored["label"] = profile.name
             stored["apps"] = profile.application.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             var mappings = stored["mappings"] as? [String: Any] ?? [:]
+            guard !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, profile.name.count <= 100 else { throw ServiceFailure(message: "Profile names must contain 1–100 characters.") }
             let old = baseline.profiles.first(where: { $0.id == profile.id })
             for (index, key) in controlKeys.enumerated() where old == nil || old!.actions[index] != profile.actions[index] {
                 mappings[key] = identifier(profile.actions[index])
@@ -262,6 +269,7 @@ enum NativeBridge {
     }
     func startService() {
         guard !busy else { return }
+        if let serviceProcess, serviceProcess.isRunning { message = "Starting Rust service…"; return }
         let executable = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("superlight")
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { error = "The bundled Rust service is missing. Reinstall the complete app."; return }
         let process = Process()

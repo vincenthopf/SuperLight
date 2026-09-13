@@ -4,8 +4,8 @@ import AppKit
 struct InspectorView: View {
     @ObservedObject var model: ServiceModel
     let images: [String: NSImage]
-    @Environment(\.colorScheme) var scheme
     @State private var discard = false
+    @State private var showInspector = true
     var mouseImage: NSImage? {
         let layout = model.device["layout_key"] as? String ?? ""
         if layout.contains("master") { return images["mouse"] }
@@ -15,75 +15,105 @@ struct InspectorView: View {
     }
     var body: some View {
         NavigationSplitView {
-            sidebar
-        } detail: {
-            VStack(spacing: 0) {
-            HStack {
-                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : "info.circle").font(.caption)
-                Spacer()
-                if model.busy { ProgressView().controlSize(.small) }
-                Picker("Appearance", selection: $model.theme) { ForEach(["Light", "Dark", "System"], id: \.self) { Text($0) } }.labelsHidden().frame(width: 105).accessibilityLabel("Appearance").disabled(model.saving || model.data.profiles.isEmpty)
-                Button(model.connected ? "Refresh" : "Start service") { if model.connected { model.command("refresh_hardware") } else { model.startService() } }.disabled(model.busy)
-            }.padding(.horizontal, 22).frame(height: 46)
-            Divider()
-            HStack(spacing: 0) {
-                if model.data.profiles.isEmpty {
-                    ContentUnavailableView("Connect to SuperLight", systemImage: "computermouse", description: Text(model.message))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if model.page == .buttons {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(model.deviceName).font(.system(size: 25, weight: .semibold))
-                            Text(deviceDescription).foregroundStyle(.secondary).font(.caption)
-                            if let mouseImage { MouseDiagram(model: model, mouseImage: mouseImage).frame(height: 265) }
-                            else { ContentUnavailableView(model.device.isEmpty ? "No mouse detected" : "Mouse controls", systemImage: "computermouse", description: Text("Use the control list below. A diagram is shown for recognized models.")).frame(height: 160) }
-                            Text("CONTROLS").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
-                            ButtonList(model: model)
-                        }.padding(24)
-                    }.frame(maxWidth: .infinity)
-                    Divider()
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            Text("INSPECTOR").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
-                            profilePicker
-                            Divider()
-                            if model.supportedButton(model.selected) { ActionEditor(model: model) }
-                            else { Text("This control is unavailable on the connected device.").foregroundStyle(.secondary) }
-                            Divider()
-                            Text("Active profile: \(model.snapshot["active_profile"] as? String ?? "default")").font(.caption).foregroundStyle(.secondary)
-                            Text("\(model.snapshot["foreground"] as? [String: Any] != nil ? (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "" : "")").font(.caption).foregroundStyle(.secondary)
-                        }.padding(24)
-                    }.frame(width: 300).background(scheme == .dark ? Color(white: 0.105) : .white)
-                } else {
-                    VStack(alignment: .leading, spacing: 22) {
-                        HStack { Text(model.page.rawValue).font(.system(size: 25, weight: .semibold)); Spacer(); profilePicker }
-                        switch model.page {
-                        case .scroll: ScrollSettings(model: model)
-                        case .profiles: ProfileSettings(model: model)
-                        case .settings: GeneralSettings(model: model)
-                        case .buttons: EmptyView()
-                        }
-                    }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            List(selection: $model.page) {
+                Section("Mouse") {
+                    ForEach(Page.allCases, id: \.self) { page in Label(page.rawValue, systemImage: page.icon).tag(page) }
                 }
-            }.disabled(model.saving)
-            Divider()
-            if model.conflicted { Text("The service configuration changed. Reload before saving to avoid overwriting it.").font(.caption).foregroundStyle(.orange).padding(10) }
-            HStack(spacing: 10) {
-                Text(model.saving ? "Saving…" : model.dirty ? "Unsaved changes" : model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Spacer()
-                Button(model.conflicted ? "Reload" : "Revert") { discard = true }.disabled((!model.dirty && !model.conflicted) || model.saving)
-                Button("Save changes") { model.save() }.keyboardShortcut("s", modifiers: .command).disabled(!model.canSave).buttonStyle(.borderedProminent)
-            }.padding(.horizontal, 22).frame(height: 56)
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
+            .safeAreaInset(edge: .bottom) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : "info.circle").font(.caption)
+                    Text("Local Rust service").font(.caption2).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading).padding()
+            }
+        } detail: {
+            detail
+                .navigationTitle(model.page == .buttons ? model.deviceName : model.page.rawValue)
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Button(model.connected ? "Refresh" : "Start service", systemImage: "arrow.clockwise") {
+                            if model.connected { model.command("refresh_hardware") } else { model.startService() }
+                        }.disabled(model.busy)
+                        Button(model.snapshot["paused"] as? Bool == true ? "Resume" : "Pause", systemImage: model.snapshot["paused"] as? Bool == true ? "play" : "pause") {
+                            model.command("set_paused", value: model.snapshot["paused"] as? Bool != true)
+                        }.disabled(!model.connected || model.busy)
+                        if model.page == .buttons {
+                            Button("Toggle Inspector", systemImage: "sidebar.right") { showInspector.toggle() }
+                        }
+                    }
+                }
+                .inspector(isPresented: Binding(get: { showInspector && model.page == .buttons && !model.data.profiles.isEmpty }, set: { showInspector = $0 })) {
+                    Form {
+                        Section { profilePicker }
+                        Section("Selected control") {
+                            if !model.data.profiles.isEmpty && model.supportedButton(model.selected) { ActionEditor(model: model) }
+                            else { Text("This control is unavailable on the connected device.").foregroundStyle(.secondary) }
+                        }
+                        Section("Currently active") {
+                            LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
+                            LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
+                        }
+                    }.formStyle(.grouped).inspectorColumnWidth(min: 290, ideal: 320, max: 400).disabled(model.saving)
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }
         }
-        }
-        .navigationSplitViewStyle(.balanced)
-        .navigationTitle("SuperLight")
-        .tint(Color(red: 0.33, green: 0.48, blue: 0.88)).preferredColorScheme(model.scheme)
+        .preferredColorScheme(model.scheme)
         .alert("Discard unsaved changes?", isPresented: $discard) {
             Button("Keep editing", role: .cancel) {}
             Button("Reload", role: .destructive) { model.revert() }
         } message: { Text("Load the latest configuration reported by the service.") }
         .alert("SuperLight", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
+    }
+    @ViewBuilder var detail: some View {
+        if model.data.profiles.isEmpty {
+            ContentUnavailableView {
+                Label("Connect to SuperLight", systemImage: "computermouse")
+            } description: { Text(model.message) } actions: {
+                Button("Start service") { model.startService() }.disabled(model.busy)
+            }
+        } else {
+            VStack(spacing: 0) {
+                if model.status != "Mouse ready" {
+                    HStack {
+                        Label(model.status, systemImage: "info.circle").font(.callout)
+                        Spacer()
+                        if model.status == "Input permissions required" {
+                            Button("Review permissions") { model.page = .settings }
+                        }
+                    }.padding().background(.quaternary.opacity(0.5))
+                }
+                switch model.page {
+                case .buttons:
+                    VStack(spacing: 0) {
+                        if let mouseImage {
+                            MouseDiagram(model: model, mouseImage: mouseImage).frame(height: 260).padding(.horizontal, 12)
+                        } else {
+                            ContentUnavailableView(model.device.isEmpty ? "No mouse detected" : "Mouse controls", systemImage: "computermouse", description: Text("A diagram appears for recognized models. Your assignments are kept while disconnected.")).frame(height: 220)
+                        }
+                        Text(deviceDescription).font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
+                        ButtonList(model: model)
+                    }
+                case .scroll: ScrollSettings(model: model)
+                case .profiles: ProfileSettings(model: model)
+                case .settings: GeneralSettings(model: model)
+                }
+            }.disabled(model.saving)
+        }
+    }
+    var saveBar: some View {
+        VStack(spacing: 8) {
+            Divider()
+            if model.conflicted { Text("The service configuration changed. Reload before saving.").font(.caption).foregroundStyle(.orange) }
+            HStack(spacing: 10) {
+                if model.saving { ProgressView().controlSize(.small) }
+                Text(model.saving ? "Saving…" : model.dirty ? "Unsaved changes" : model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Spacer()
+                Button(model.conflicted ? "Reload" : "Revert") { discard = true }.disabled((!model.dirty && !model.conflicted) || model.saving)
+                Button("Save changes") { model.save() }.keyboardShortcut("s", modifiers: .command).disabled(!model.canSave).buttonStyle(.borderedProminent)
+            }.padding(.horizontal).padding(.bottom, 12)
+        }.background(.bar)
     }
     var deviceDescription: String {
         var parts = [model.device["transport"] as? String ?? model.status]
@@ -94,70 +124,40 @@ struct InspectorView: View {
     var profilePicker: some View {
         Picker("Editing profile", selection: $model.profile) {
             ForEach(Array(model.data.profiles.enumerated()), id: \.element.id) { index, profile in Text(profile.name).tag(index) }
-        }.frame(maxWidth: 260)
-    }
-    var sidebar: some View {
-        List(selection: $model.page) {
-            Section("Workspace") {
-                ForEach(Page.allCases, id: \.self) { page in
-                    Label(page.rawValue, systemImage: page.icon).tag(page)
-                }
-            }
-            Section("Service") {
-                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : "info.circle")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button(model.snapshot["paused"] as? Bool == true ? "Resume remapping" : "Pause remapping") {
-                    model.command("set_paused", value: model.snapshot["paused"] as? Bool != true)
-                }.disabled(!model.connected || model.busy)
-            }
-        }
-        .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Label("SuperLight", systemImage: "computermouse.fill")
-            }
         }
     }
-
 }
 
 struct GeneralSettings: View {
     @ObservedObject var model: ServiceModel
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Permissions & connection").font(.headline)
-                    Label("Input Monitoring: \(model.permission["listen"] as? Bool == true ? "Allowed" : "Required")", systemImage: "cursorarrow")
-                    Label("Accessibility: \(model.permission["inject"] as? Bool == true ? "Allowed" : "Required")", systemImage: "accessibility")
-                    Text(model.permission["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Request permissions") { model.command("request_permissions") }.disabled(model.busy || !model.connected)
-                        Button("Reconnect mouse") { model.command("reconnect") }.disabled(model.busy || !model.connected)
-                    }
-                }.padding(22).modifier(Surface())
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Startup & appearance").font(.headline)
-                    Toggle("Start at login", isOn: $model.data.startAtLogin)
-                    Picker("Theme", selection: $model.theme) { ForEach(["Light", "Dark", "System"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
-                    Text("Closing settings leaves the Rust service running. Save to apply startup and appearance changes.").font(.caption).foregroundStyle(.secondary)
-                }.padding(22).modifier(Surface())
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Gestures").font(.headline)
-                    Slider(value: $model.data.gestureThreshold, in: 10...300, step: 1) { Text("Distance threshold") }
-                    Slider(value: $model.data.gestureDeadzone, in: 0...200, step: 1) { Text("Dead zone") }
-                    Slider(value: $model.data.gestureTimeout, in: 100...10000, step: 100) { Text("Timeout (ms)") }
-                    Slider(value: $model.data.gestureCooldown, in: 0...2000, step: 50) { Text("Cooldown (ms)") }
-                }.padding(22).modifier(Surface()).disabled(!model.supports("supports_gesture"))
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Diagnostics").font(.headline)
-                    Text("Dropped events: \(model.snapshot["dropped_events"] as? Int ?? 0)").monospacedDigit()
-                    Text("Hardware update: \(model.snapshot["hardware_pending"] as? Bool == true ? "Pending" : "Idle")")
-                    if let notice = model.snapshot["notice"] as? String { Text(notice).foregroundStyle(.orange) }
-                    ForEach(Array((model.snapshot["errors"] as? [String] ?? []).enumerated()), id: \.offset) { _, text in Text(text).font(.caption).textSelection(.enabled) }
-                }.padding(22).modifier(Surface())
+        Form {
+            Section("Permissions & connection") {
+                LabeledContent("Input Monitoring", value: model.permission["listen"] as? Bool == true ? "Allowed" : "Required")
+                LabeledContent("Accessibility", value: model.permission["inject"] as? Bool == true ? "Allowed" : "Required")
+                Text(model.permission["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Request permissions") { model.command("request_permissions") }.disabled(model.busy || !model.connected)
+                    Button("Reconnect mouse") { model.command("reconnect") }.disabled(model.busy || !model.connected)
+                }
             }
-        }
+            Section("Startup & appearance") {
+                Toggle("Start at login", isOn: $model.data.startAtLogin)
+                Picker("Appearance", selection: $model.theme) { ForEach(["Light", "Dark", "System"], id: \.self) { Text($0) } }
+                Text("Closing settings leaves the Rust service running. Save to apply startup and appearance changes.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Gestures") {
+                Slider(value: $model.data.gestureThreshold, in: 10...300, step: 1) { Text("Distance threshold") }
+                Slider(value: $model.data.gestureDeadzone, in: 0...200, step: 1) { Text("Dead zone") }
+                Slider(value: $model.data.gestureTimeout, in: 100...10000, step: 100) { Text("Timeout (ms)") }
+                Slider(value: $model.data.gestureCooldown, in: 0...2000, step: 50) { Text("Cooldown (ms)") }
+            }.disabled(!model.supports("supports_gesture"))
+            Section("Diagnostics") {
+                LabeledContent("Dropped events", value: String(model.snapshot["dropped_events"] as? Int ?? 0))
+                LabeledContent("Hardware update", value: model.snapshot["hardware_pending"] as? Bool == true ? "Pending" : "Idle")
+                if let notice = model.snapshot["notice"] as? String { Text(notice).foregroundStyle(.orange) }
+                ForEach(Array((model.snapshot["errors"] as? [String] ?? []).enumerated()), id: \.offset) { _, text in Text(text).font(.caption).textSelection(.enabled) }
+            }
+        }.formStyle(.grouped)
     }
 }

@@ -1,22 +1,6 @@
 import SwiftUI
 import AppKit
 
-struct Surface: ViewModifier {
-    @Environment(\.colorScheme) var scheme
-    func body(content: Content) -> some View {
-        content.background(scheme == .dark ? Color(white: 0.115) : Color.white, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.09), lineWidth: 0.5))
-    }
-}
-
-struct GlassControl: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
-    func body(content: Content) -> some View {
-        if reduceTransparency { content.background(.background, in: Capsule()) }
-        else { content.glassEffect(.regular, in: .capsule) }
-    }
-}
-
 struct MouseDiagram: View {
     @ObservedObject var model: ServiceModel
     var showHotspots = true
@@ -25,8 +9,9 @@ struct MouseDiagram: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let width = min(geometry.size.width, geometry.size.height * 1408 / 768)
-            let height = width * 768 / 1408
+            let aspect = mouseImage.size.width / mouseImage.size.height
+            let width = min(geometry.size.width, geometry.size.height * aspect)
+            let height = width / aspect
             let left = (geometry.size.width - width) / 2
             let top = (geometry.size.height - height) / 2
             ZStack(alignment: .topLeading) {
@@ -58,33 +43,21 @@ struct MouseDiagram: View {
 
 struct ButtonList: View {
     @ObservedObject var model: ServiceModel
-    var filter = ""
-    var inlineActions = false
     var body: some View {
-        VStack(spacing: 2) {
-            ForEach(0..<controlNames.count, id: \.self) { index in
-                let action = model.data.profiles[model.profile].actions[index]
-                if model.supportedButton(index) && (filter.isEmpty || controlNames[index].localizedCaseInsensitiveContains(filter) || action.localizedCaseInsensitiveContains(filter)) {
-                    Button { model.selected = index } label: {
-                        HStack(spacing: 12) {
-                            Text("\(index + 1)").font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.secondary).frame(width: 24, height: 24)
-                                .background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                            Text(controlNames[index]).fontWeight(model.selected == index ? .medium : .regular)
-                            Spacer(minLength: 8)
-                            if inlineActions { Text(action).foregroundStyle(.secondary).lineLimit(1) }
-                            Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 10).frame(minHeight: 44)
-                        .background(model.selected == index ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                        .contentShape(Rectangle())
-                    }.buttonStyle(.plain).accessibilityAddTraits(model.selected == index ? .isSelected : [])
+        List(selection: $model.selected) {
+            Section("Controls") {
+                ForEach(0..<controlNames.count, id: \.self) { index in
+                    if model.supportedButton(index) {
+                        HStack {
+                            Text("\(index + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 24)
+                            Text(controlNames[index])
+                            Spacer()
+                            Text(model.data.profiles[model.profile].actions[index]).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }.tag(index).padding(.vertical, 4)
+                    }
                 }
             }
-            if !filter.isEmpty && !(0..<7).contains(where: { controlNames[$0].localizedCaseInsensitiveContains(filter) || model.data.profiles[model.profile].actions[$0].localizedCaseInsensitiveContains(filter) }) {
-                VStack(spacing: 8) { Image(systemName: "magnifyingglass"); Text("No matches for \"\(filter)\"").font(.caption).foregroundStyle(.secondary) }.frame(height: 160)
-            }
-        }
+        }.listStyle(.inset)
     }
 }
 
@@ -94,21 +67,21 @@ struct ActionEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Image(systemName: model.selected >= 7 || model.selected == 1 ? "hand.draw" : "cursorarrow.click")
+                Image(systemName: (7...10).contains(model.selected) || model.selected == 1 ? "hand.draw" : "cursorarrow.click")
                     .font(.title3).frame(width: 40, height: 40).background(.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(controlNames[model.selected]).font(.headline)
                     Text(model.data.profiles[model.profile].name).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Text("ASSIGNED ACTION").font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(.secondary)
-            Button { pickerOpen = true } label: {
-                HStack { Text(model.action).lineLimit(2); Spacer(); Image(systemName: "chevron.up.chevron.down").font(.caption) }
-                    .padding(12).frame(minHeight: 44).background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8)).contentShape(Rectangle())
-            }.buttonStyle(.plain).help("Choose an action for \(controlNames[model.selected])")
+            Picker("Action", selection: Binding(get: { model.action }, set: { model.assign($0) })) {
+                ForEach(model.actions, id: \.self) { action in Text(action[1]).tag(action[1]) }
+                if !model.actions.contains(where: { $0[1] == model.action }) { Text(model.action).tag(model.action) }
+            }
+            Button("Search actions or set shortcut…") { pickerOpen = true }
             Text("Changes apply to this profile only. The other buttons keep their assignments.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            if model.selected == 1 || model.selected >= 7 {
+            if model.selected == 1 || (7...10).contains(model.selected) {
                 Divider()
                 Text("Hold and move").font(.subheadline.weight(.medium))
                 HStack {
@@ -169,15 +142,11 @@ struct ActionChooser: View {
     }
 
     func useShortcut() {
-        let parts = shortcut.lowercased().split(separator: "+", omittingEmptySubsequences: false).map { $0.trimmingCharacters(in: .whitespaces) }
-        let modifiers = Set(["cmd", "ctrl", "alt", "shift"])
-        guard parts.count >= 2, parts.count <= 5, Set(parts.dropLast()).count == parts.count - 1,
-              parts.dropLast().allSatisfy({ modifiers.contains($0) }), let key = parts.last,
-              key.count == 1 && key.first!.isLetter || ["return", "space", "tab", "left", "right", "up", "down"].contains(key) else {
-            validation = "Use modifiers and one key, for example cmd+shift+p."
-            return
-        }
-        model.assign("custom:" + parts.joined(separator: "+"))
-        dismiss()
+        let normalized = shortcut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        do {
+            _ = try NativeBridge.call(["local": "validate_action", "action": "custom:" + normalized])
+            model.assign("custom:" + normalized)
+            dismiss()
+        } catch { validation = error.localizedDescription }
     }
 }
