@@ -84,7 +84,7 @@ def archive(bundle, output):
 
 def dependency_licenses(root, destination):
     result = subprocess.run(
-        ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"],
+        ["cargo", "metadata", "--locked", "--format-version", "1"],
         cwd=root, text=True, capture_output=True, timeout=60, check=True,
     )
     metadata = json.loads(result.stdout)
