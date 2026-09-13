@@ -1,6 +1,10 @@
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
+if ! xcodebuild -version | head -1 | grep -qE "Xcode (26|[3-9][0-9])"; then
+    printf "Xcode 26 or newer is required. Select it with xcode-select.\n" >&2
+    exit 1
+fi
 out="${1:-$root/target/native-macos}"
 target_dir="${CARGO_TARGET_DIR:-$root/target}"
 case "$(uname -m)" in
