@@ -118,16 +118,19 @@ def summarize(samples):
     return metrics
 
 
-def collect(bundle, output, seconds, interval=1.0, process_ids=None):
+def collect(bundle, output, seconds, interval=1.0, process_ids=None, context=None):
     began = time.monotonic()
     samples = []
     with pathlib.Path(output).open("x", encoding="utf-8") as file:
         while True:
+            environment = context() if context is not None else None
             pids = app_pids(bundle) if process_ids is None else process_ids
             if not pids:
                 raise RuntimeError(f"No running processes for {bundle}")
             row = {"elapsed_s": time.monotonic() - began,
                    "processes": [sample(pid) for pid in pids], "load_average": os.getloadavg()}
+            if environment is not None:
+                row["context"] = environment
             samples.append(row)
             file.write(json.dumps(row) + "\n")
             file.flush()

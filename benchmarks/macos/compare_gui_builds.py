@@ -5,10 +5,33 @@ import pathlib
 import subprocess
 import time
 
-from AppKit import NSRunningApplication
+import Quartz
+from AppKit import NSRunningApplication, NSWorkspace
+from CoreFoundation import CFRunLoopRunInMode, kCFRunLoopDefaultMode
 
 from compare import health, save, status, stop, visible_windows
-from observe import app_pids, collect, processes, summarize
+from observe import TIMEBASE, app_pids, collect, sample, summarize
+
+
+def desktop_context(pid, hidden):
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, .002, False)
+    session = Quartz.CGSessionCopyCurrentDictionary()
+    if session is None:
+        raise RuntimeError("Desktop session unavailable")
+    if session.get("CGSSessionScreenIsLocked", False):
+        raise RuntimeError("Screen locked: measurement rejected")
+    foreground = NSWorkspace.sharedWorkspace().frontmostApplication()
+    app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+    windows = visible_windows([pid])
+    foreground_pid = int(foreground.processIdentifier()) if foreground else None
+    if app is None or bool(app.isHidden()) != hidden or bool(windows) == hidden:
+        raise RuntimeError("GUI visibility changed: measurement rejected")
+    if not hidden and foreground_pid != pid:
+        raise RuntimeError("GUI lost foreground: measurement rejected")
+    if foreground and foreground.bundleIdentifier() == "com.apple.loginwindow":
+        raise RuntimeError("Login window is active: measurement rejected")
+    return {"screen_locked": False, "foreground_pid": foreground_pid, "gui_pid": pid,
+            "gui_hidden": hidden, "windows": windows}
 
 
 def window(pid, hidden, resize=False):
@@ -30,6 +53,8 @@ def window(pid, hidden, resize=False):
         result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10)
         if result.returncode:
             raise RuntimeError(result.stderr)
+    time.sleep(.2)
+    desktop_context(pid, hidden)
 
 
 def main():
@@ -37,6 +62,8 @@ def main():
     for name in ("baseline", "candidate", "installed", "output"):
         parser.add_argument("--" + name, type=pathlib.Path, required=True)
     args = parser.parse_args()
+    if (Quartz.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked", False):
+        raise RuntimeError("Unlock the desktop before benchmarking")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     bundles = {name: getattr(args, name).resolve() for name in ("baseline", "candidate", "installed")}
@@ -49,6 +76,24 @@ def main():
     installed_exe = bundles["installed"] / "Contents/MacOS/superlight"
     active = None
     trials = []
+    initial = sample(os.getpid())
+    started = time.process_time_ns()
+    while time.process_time_ns() - started < 100_000_000:
+        pass
+    elapsed = time.process_time_ns() - started
+    last = sample(os.getpid())
+    ratio = sum(last[k] - initial[k] for k in ("user_ns", "system_ns")) / elapsed
+    if not .98 < ratio < 1.02:
+        raise RuntimeError("CPU calibration failed")
+    save(output / "manifest.json", {
+        "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "warmup_s": 30, "visible_sample_s": 30, "hidden_sample_s": 20,
+        "appearance": "dark", "requested_window_size": [1120, 790],
+        "cpu_calibration": {"ratio": ratio, "numer": TIMEBASE.numer, "denom": TIMEBASE.denom},
+        "validation": "Lock state and foreground/hidden GUI state validated at every sample",
+        "os": subprocess.check_output(["sw_vers"], text=True),
+        "power": subprocess.check_output(["pmset", "-g", "batt"], text=True)
+    })
     try:
         stop(bundles["installed"], installed_exe, os.environ)
         for index, name in enumerate(["baseline", "candidate", "candidate", "baseline", "baseline", "candidate"]):
@@ -75,12 +120,15 @@ def main():
             else:
                 raise RuntimeError(f"{name} not ready")
             ui = windows[0]["pid"]
-            window(ui, False)
+            window(ui, False, resize=True)
             print(f"{prefix}: hardware ready, UI {ui}, warming up 30s", flush=True)
-            time.sleep(30)
+            for _ in range(30):
+                desktop_context(ui, False)
+                time.sleep(1)
             if len(app_pids(bundle)) != 2 or not visible_windows([ui]):
                 raise RuntimeError("Wrong process or window state")
-            measured = collect(bundle, output / (prefix + "-visible.jsonl"), 30)
+            measured = collect(bundle, output / (prefix + "-visible.jsonl"), 30,
+                               context=lambda: desktop_context(ui, False))
             if not measured["stable_process_set"] or not visible_windows([ui]):
                 raise RuntimeError("Visible measurement invalid")
             rows = [json.loads(line) for line in (output / (prefix + "-visible.jsonl")).read_text().splitlines()]
@@ -90,7 +138,8 @@ def main():
             time.sleep(3)
             if visible_windows([ui]):
                 raise RuntimeError("UI not hidden")
-            hidden = collect(bundle, output / (prefix + "-hidden.jsonl"), 20)
+            hidden = collect(bundle, output / (prefix + "-hidden.jsonl"), 20,
+                             context=lambda: desktop_context(ui, True))
             hidden_rows = [json.loads(line) for line in (output / (prefix + "-hidden.jsonl")).read_text().splitlines()]
             hidden_ui = summarize([{**row, "processes": [p for p in row["processes"] if p["pid"] == ui]} for row in hidden_rows])
             window(ui, False)
