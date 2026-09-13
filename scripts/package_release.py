@@ -184,7 +184,7 @@ def main():
             subprocess.run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(bundle)], check=True, timeout=60)
         archive(bundle, output)
     digest = hashlib.sha256(output.read_bytes()).hexdigest()
-    with output.with_suffix(".zip.sha256").open("x", encoding="utf-8") as checksum:
+    with output.with_suffix(".zip.sha256").open("x", encoding="utf-8", newline="") as checksum:
         checksum.write(f"{digest}  {output.name}\n")
     print(json.dumps({"archive": str(output), "sha256": digest, "bytes": output.stat().st_size, "signing": "ad-hoc, not notarized" if system == "Darwin" else "unsigned", "version": version, "architecture": architecture}))
 
