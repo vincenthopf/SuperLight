@@ -262,7 +262,10 @@ mod tests {
         assert!(editor.remove_profile("default").is_err());
         let key = editor.add_profile("Browser").unwrap();
         editor.draft["profiles"][&key]["mappings"]["middle"] = json!("copy");
-        assert_eq!(editor.draft["profiles"]["default"]["mappings"]["middle"], "none");
+        assert_eq!(
+            editor.draft["profiles"]["default"]["mappings"]["middle"],
+            "none"
+        );
         assert_eq!(editor.draft["profiles"][&key]["label"], "Browser");
         editor.remove_profile(&key).unwrap();
         assert_eq!(editor.selected_profile, "default");
@@ -274,9 +277,15 @@ mod tests {
         editor.receive(snapshot("service-a", 1));
         let key = editor.add_profile("Browser").unwrap();
         editor.selected_profile = key;
-        editor.set_applications("Firefox\nfirefox\norg.mozilla.firefox").unwrap();
+        editor
+            .set_applications("Firefox\nfirefox\norg.mozilla.firefox")
+            .unwrap();
         assert_eq!(editor.applications(), "Firefox\norg.mozilla.firefox");
-        assert!(editor.set_applications(&"x\n".repeat(65)).is_err());
+        let aliases = (0..65)
+            .map(|index| format!("application-{index}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(editor.set_applications(&aliases).is_err());
     }
 
     #[test]
@@ -285,7 +294,8 @@ mod tests {
         editor.receive(snapshot("service-a", 1));
         assert!(editor.set_action(0, "custom:not_a_real_key").is_err());
         assert!(editor.set_action(99, "copy").is_err());
-        editor.draft["profiles"]["default"]["mappings"]["middle"] = json!("custom:not_a_real_key");
+        editor.draft["profiles"]["default"]["mappings"]["middle"] =
+            json!("custom:not_a_real_key");
         assert!(editor.apply_request().is_err());
     }
 
