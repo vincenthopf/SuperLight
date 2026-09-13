@@ -118,12 +118,12 @@ def summarize(samples):
     return metrics
 
 
-def collect(bundle, output, seconds, interval=1.0):
+def collect(bundle, output, seconds, interval=1.0, process_ids=None):
     began = time.monotonic()
     samples = []
     with pathlib.Path(output).open("x", encoding="utf-8") as file:
         while True:
-            pids = app_pids(bundle)
+            pids = app_pids(bundle) if process_ids is None else process_ids
             if not pids:
                 raise RuntimeError(f"No running processes for {bundle}")
             row = {"elapsed_s": time.monotonic() - began,
