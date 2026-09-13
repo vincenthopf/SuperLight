@@ -2,6 +2,8 @@ import SwiftUI
 import AppKit
 
 struct MouseDiagram: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovered: Int?
     @ObservedObject var model: ServiceModel
     var showHotspots = true
     let mouseImage: NSImage
@@ -27,8 +29,12 @@ struct MouseDiagram: View {
                                 Circle().strokeBorder(.white.opacity(0.9), lineWidth: active ? 2 : 1).frame(width: active ? 30 : 24, height: active ? 30 : 24)
                                 Text("\(point.0 + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                             }.frame(width: 44, height: 44).contentShape(Circle())
+                                .scaleEffect(!reduceMotion && hovered == point.0 ? 1.08 : 1)
+                                .opacity(hovered == point.0 ? 1 : 0.92)
+                                .animation(.timingCurve(0.25, 1, 0.5, 1, duration: 0.16), value: hovered)
                         }
                         .buttonStyle(.plain)
+                        .onHover { inside in hovered = inside ? point.0 : nil }
                         .disabled(!model.supportedButton(point.0))
                         .accessibilityLabel("Select \(controlNames[point.0])")
                         .accessibilityAddTraits(active ? .isSelected : [])

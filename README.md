@@ -43,7 +43,15 @@ Rust `1.98.1` is pinned in `rust-toolchain.toml`.
 cargo build --locked --release -p superlight-service -p superlight-ui --bins
 ```
 
-On macOS, build the native settings executable after the Rust build:
+On macOS, install a local development build at a stable path before granting permissions:
+
+```bash
+bash macos/inspector/install.sh
+```
+
+This creates `~/Applications/SuperLight.app`. It refuses to replace an existing installation. Avoid granting permissions to timestamped scratch builds: macOS may treat each location or changed ad-hoc signature as a different app.
+
+To build the native settings executable without installing:
 
 ```bash
 bash macos/inspector/build.sh

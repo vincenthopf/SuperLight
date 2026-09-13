@@ -83,7 +83,13 @@ enum NativeBridge {
     var scheme: ColorScheme? { theme == "System" ? nil : theme == "Dark" ? .dark : .light }
     var action: String { data.profiles.isEmpty ? "Pass through" : data.profiles[profile].actions[selected] }
     var device: [String: Any] { snapshot["device"] as? [String: Any] ?? [:] }
-    var deviceName: String { device["name"] as? String ?? "No mouse connected" }
+    var deviceName: String { device["name"] as? String ?? "SuperLight" }
+    var deviceDetected: Bool { !device.isEmpty }
+    var connectionSummary: String {
+        if !connected { return "Reconnecting to service…" }
+        if !deviceDetected { return "Searching for a Logitech mouse…" }
+        return "\(deviceName) · \(device["transport"] as? String ?? "Connected")"
+    }
     var permission: [String: Any] { snapshot["permissions"] as? [String: Any] ?? [:] }
     var dpiBounds: ClosedRange<Double> { Double(device["dpi_min"] as? Int ?? 200)...Double(max(device["dpi_max"] as? Int ?? 8000, device["dpi_min"] as? Int ?? 200)) }
     var canSave: Bool { connected && dirty && !conflicted && !busy && !data.profiles.isEmpty }
@@ -160,7 +166,7 @@ enum NativeBridge {
         } else { conflicted = revision != self.revision || instance != self.instance }
         saving = false
         if !saved && !dirty { message = status }
-        if saved { message = "Configuration saved. " + status }
+        if saved { message = "Changes saved" }
     }
     private func replace(config: [String: Any], revision: UInt64, instance: String) {
         guard let profiles = config["profiles"] as? [String: [String: Any]], profiles["default"] != nil,
@@ -269,6 +275,7 @@ enum NativeBridge {
     }
     func startService() {
         guard !busy else { return }
+        attemptedStart = true
         if let serviceProcess, serviceProcess.isRunning { message = "Starting Rust service…"; return }
         let executable = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("superlight")
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { error = "The bundled Rust service is missing. Reinstall the complete app."; return }

@@ -4,6 +4,7 @@ import AppKit
 struct InspectorView: View {
     @ObservedObject var model: ServiceModel
     let images: [String: NSImage]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var discard = false
     @State private var showInspector = true
     var mouseImage: NSImage? {
@@ -25,7 +26,7 @@ struct InspectorView: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : "info.circle").font(.caption)
-                    Text("Local Rust service").font(.caption2).foregroundStyle(.secondary)
+                    Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding()
             }
         } detail: {
@@ -33,7 +34,7 @@ struct InspectorView: View {
                 .navigationTitle(model.page == .buttons ? model.deviceName : model.page.rawValue)
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
-                        Button(model.connected ? "Refresh" : "Start service", systemImage: "arrow.clockwise") {
+                        Button(model.connected ? "Refresh device settings" : "Start service", systemImage: "arrow.clockwise") {
                             if model.connected { model.command("refresh_hardware") } else { model.startService() }
                         }.disabled(model.busy)
                         Button(model.snapshot["paused"] as? Bool == true ? "Resume" : "Pause", systemImage: model.snapshot["paused"] as? Bool == true ? "play" : "pause") {
@@ -59,6 +60,7 @@ struct InspectorView: View {
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }
         }
+        .navigationSplitViewStyle(.balanced)
         .preferredColorScheme(model.scheme)
         .alert("Discard unsaved changes?", isPresented: $discard) {
             Button("Keep editing", role: .cancel) {}
@@ -83,6 +85,7 @@ struct InspectorView: View {
                             Button("Review permissions") { model.page = .settings }
                         }
                     }.padding().background(.quaternary.opacity(0.5))
+                    .transition(.opacity)
                 }
                 switch model.page {
                 case .buttons:
@@ -100,6 +103,7 @@ struct InspectorView: View {
                 case .settings: GeneralSettings(model: model)
                 }
             }.disabled(model.saving)
+                .animation(.timingCurve(0.25, 1, 0.5, 1, duration: reduceMotion ? 0.1 : 0.18), value: model.status)
         }
     }
     var saveBar: some View {
@@ -108,12 +112,13 @@ struct InspectorView: View {
             if model.conflicted { Text("The service configuration changed. Reload before saving.").font(.caption).foregroundStyle(.orange) }
             HStack(spacing: 10) {
                 if model.saving { ProgressView().controlSize(.small) }
-                Text(model.saving ? "Saving…" : model.dirty ? "Unsaved changes" : model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(model.saving ? "Saving…" : model.dirty ? "Unsaved changes" : "All changes saved").font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 Spacer()
                 Button(model.conflicted ? "Reload" : "Revert") { discard = true }.disabled((!model.dirty && !model.conflicted) || model.saving)
                 Button("Save changes") { model.save() }.keyboardShortcut("s", modifiers: .command).disabled(!model.canSave).buttonStyle(.borderedProminent)
             }.padding(.horizontal).padding(.bottom, 12)
         }.background(.bar)
+            .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: model.saving)
     }
     var deviceDescription: String {
         var parts = [model.device["transport"] as? String ?? model.status]

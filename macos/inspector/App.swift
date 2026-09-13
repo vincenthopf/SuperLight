@@ -18,11 +18,14 @@ import SwiftUI
         model = ServiceModel()
         let view = InspectorView(model: model, images: images)
         NSWindow.allowsAutomaticWindowTabbing = false
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 790), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 790), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "SuperLight"
+        window.titlebarAppearsTransparent = true
+        window.toolbarStyle = .unified
+        window.setFrameAutosaveName("SuperLight.Inspector")
         window.contentView = NSHostingView(rootView: view)
         window.minSize = NSSize(width: 920, height: 650)
-        window.center()
+        if !window.setFrameUsingName("SuperLight.Inspector") { window.center() }
         window.delegate = self
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
