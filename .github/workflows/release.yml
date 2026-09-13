@@ -20,21 +20,16 @@ jobs:
         include:
           - runner: windows-latest
             label: windows-x64
-          - runner: macos-14
+          - runner: macos-26
             label: macos-arm64
           - runner: macos-15-intel
             label: macos-x64
-          - runner: ubuntu-latest
-            label: linux-x64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev
       - name: Verify source
         run: |
           cargo fmt --all -- --check
@@ -42,6 +37,11 @@ jobs:
           cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Build optimized executables
         run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
+      - name: Build native macOS settings app
+        if: runner.os == 'macOS'
+        run: |
+          bash macos/inspector/build.sh
+          cp target/native-macos/superlight-ui target/release/superlight-ui
       - name: Package native application
         run: python scripts/package_release.py --output dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -71,5 +71,5 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t files < <(find dist -type f \( -name '*.zip' -o -name '*.sha256' \) -print | sort)
-          test "${#files[@]}" -eq 8
+          test "${#files[@]}" -eq 6
           gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes

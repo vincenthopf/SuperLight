@@ -1,0 +1,17 @@
+[package]
+name = "superlight-macos-bridge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+superlight-core = { path = "../superlight-core" }
+superlight-ipc = { path = "../superlight-ipc" }
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

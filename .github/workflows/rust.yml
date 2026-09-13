@@ -10,6 +10,7 @@ on:
       - crates/**
       - compatibility/**
       - scripts/**
+      - macos/**
       - packaging/**
       - images/**
       - .github/workflows/rust.yml
@@ -27,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-15-intel, windows-latest, ubuntu-latest]
+        os: [macos-26, macos-15-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     env:
@@ -57,9 +58,6 @@ jobs:
             target
           key: rust-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: rust-${{ matrix.os }}-${{ runner.arch }}-
-      - name: Install Linux display dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon-dev libxkbcommon-x11-0 libxcb-shape0-dev libxcb-xfixes0-dev libxcb-render0-dev xvfb
       - name: Compiler version
         run: rustup show
       - name: Check formatting
@@ -107,11 +105,14 @@ jobs:
           if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
           set -o pipefail
           python scripts/verify_headless.py --binary "$binary" 2>&1 | tee evidence/lifecycle.log
-      - name: Render and close the settings preview
-        if: runner.os == 'Linux'
-        run: xvfb-run -a timeout 30 target/debug/superlight-ui --smoke-test
       - name: Build optimized executables
         run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
+      - name: Build native macOS settings
+        if: runner.os == 'macOS'
+        run: |
+          bash macos/inspector/build.sh
+          cp target/native-macos/superlight-ui target/release/superlight-ui
+          bash macos/inspector/test.sh
       - name: Build release package
         run: python scripts/package_release.py --output package-smoke
       - name: Measure isolated service memory and idle CPU

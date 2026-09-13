@@ -15,7 +15,7 @@ import zipfile
 
 
 def stage(source, destination, assets, system, version):
-    if system not in ("Darwin", "Windows", "Linux"):
+    if system not in ("Darwin", "Windows"):
         raise ValueError(f"Unsupported platform: {system}")
     match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-[A-Za-z0-9.-]+)?", version)
     if match is None:
@@ -29,6 +29,10 @@ def stage(source, destination, assets, system, version):
         raise FileNotFoundError("The upstream license must be included")
     if system == "Darwin" and not (assets / "AppIcon.icns").is_file():
         raise FileNotFoundError("The macOS application icon is missing")
+    if system == "Darwin":
+        for image in ("mouse.png", "mouse_mx_anywhere_3s.png", "mx_vertical.png"):
+            if not (assets / image).is_file():
+                raise FileNotFoundError(f"Missing mouse artwork: {image}")
     destination.mkdir(parents=True, exist_ok=False)
     bundle = destination / ("SuperLight.app" if system == "Darwin" else "SuperLight")
     executable_directory = bundle / "Contents/MacOS" if system == "Darwin" else bundle
@@ -56,7 +60,7 @@ def stage(source, destination, assets, system, version):
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": match.group(1),
             "CFBundleVersion": match.group(1),
-            "LSMinimumSystemVersion": "11.0",
+            "LSMinimumSystemVersion": "14.0",
             "LSUIElement": True,
             "NSHighResolutionCapable": True,
             "NSInputMonitoringUsageDescription": "SuperLight reads mouse input to apply your configured button and gesture mappings.",
@@ -125,6 +129,8 @@ def main():
     arguments = parser.parse_args()
     root = pathlib.Path(__file__).resolve().parents[1]
     system = platform.system()
+    if system not in ("Darwin", "Windows"):
+        raise SystemExit("Release packages support macOS and Windows only")
     architecture = {"aarch64": "arm64", "arm64": "arm64", "x86_64": "x64", "amd64": "x64"}.get(platform.machine().lower())
     if architecture is None:
         raise SystemExit("The current CPU architecture is not supported by release packaging")
@@ -145,9 +151,8 @@ def main():
             if path.exists():
                 shutil.copyfile(path, assets / path.name)
         if system == "Darwin":
-            shutil.copyfile(root / "images/AppIcon.icns", assets / "AppIcon.icns")
-        if system == "Linux":
-            shutil.copytree(root / "packaging/linux", assets / "permissions")
+            for image in ("AppIcon.icns", "mouse.png", "mouse_mx_anywhere_3s.png", "mx_vertical.png"):
+                shutil.copyfile(root / "images" / image, assets / image)
         dependency_licenses(root, assets / "THIRD_PARTY_LICENSES")
         bundle = stage(arguments.binaries.resolve(), temporary / "stage", assets, system, version)
         if system == "Darwin":

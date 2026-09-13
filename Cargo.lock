@@ -2233,6 +2233,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "superlight-macos-bridge"
+version = "4.0.0-alpha.1"
+dependencies = [
+ "serde_json",
+ "superlight-core",
+ "superlight-ipc",
+ "tempfile",
+]
+
+[[package]]
 name = "superlight-service"
 version = "4.0.0-alpha.1"
 dependencies = [

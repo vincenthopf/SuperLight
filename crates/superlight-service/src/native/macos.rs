@@ -586,7 +586,22 @@ impl Native {
         let status: Id = msg1(bar, c"statusItemWithLength:", -1f64);
         let _: Id = msg0(status, c"retain");
         let button: Id = msg0(status, c"button");
-        msg1::<_, ()>(button, c"setTitle:", string("SL")?.0);
+        let icon: Id = msg2(
+            class(c"NSImage"),
+            c"imageWithSystemSymbolName:accessibilityDescription:",
+            string("computermouse")?.0,
+            string("SuperLight")?.0,
+        );
+        if icon.is_null() {
+            return Err(io::Error::other("The macOS mouse menu icon is unavailable"));
+        }
+        msg1::<_, ()>(icon, c"setTemplate:", true);
+        msg1::<_, ()>(button, c"setImage:", icon);
+        msg1::<_, ()>(
+            button,
+            c"setAccessibilityLabel:",
+            string("SuperLight mouse controls")?.0,
+        );
         msg1::<_, ()>(
             button,
             c"setToolTip:",
@@ -595,10 +610,10 @@ impl Native {
         let menu: Id = msg0(class(c"NSMenu"), c"new");
         let mut pause_item = ptr::null_mut();
         for (title, action) in [
-            ("Settings...", c"settings:"),
+            ("Mouse settings…", c"settings:"),
             ("Pause remapping", c"pause:"),
             ("Reconnect mouse", c"reconnect:"),
-            ("Input permissions...", c"permissions:"),
+            ("Input permissions…", c"permissions:"),
             ("Quit SuperLight", c"quit:"),
         ] {
             let title = string(title)?;
