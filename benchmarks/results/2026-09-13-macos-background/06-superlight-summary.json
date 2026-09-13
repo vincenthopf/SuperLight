@@ -1,0 +1,57 @@
+{
+  "trial": 6,
+  "name": "superlight",
+  "metrics": {
+    "seconds": 30.068677042145282,
+    "samples": 31,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 14861128,
+      "min": 14861128,
+      "max": 14926664,
+      "first": 14861128,
+      "last": 14926664
+    },
+    "rss_bytes": {
+      "median": 53018624,
+      "min": 52969472,
+      "max": 53035008,
+      "first": 53035008,
+      "last": 53035008
+    },
+    "threads": {
+      "median": 9,
+      "min": 9,
+      "max": 10,
+      "first": 9,
+      "last": 10
+    },
+    "deltas": {
+      "user_ns": 211568709,
+      "system_ns": 139463791,
+      "idle_wakeups": 9,
+      "interrupt_wakeups": 378,
+      "context_switches": 10018,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 657885736,
+      "cycles": 833422211
+    },
+    "cpu_percent_one_core": 1.1674357987482484,
+    "idle_wakeups_per_second": 0.29931479816638734,
+    "interrupt_wakeups_per_second": 12.57122152298827,
+    "context_switches_per_second": 333.17062755898536
+  },
+  "settings_window_visible": false,
+  "hardware": {
+    "native_ready": true,
+    "name": "MX Master 3S",
+    "transport": "Bluetooth",
+    "dpi": 1600,
+    "paused": false,
+    "suspended": false,
+    "dropped_events": 0,
+    "errors": []
+  }
+}

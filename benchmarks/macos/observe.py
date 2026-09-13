@@ -12,7 +12,7 @@ class Usage(ctypes.Structure):
     _fields_ = [("uuid", ctypes.c_ubyte * 16)] + [
         (name, ctypes.c_uint64)
         for name in (
-            "user_ns system_ns idle_wakeups interrupt_wakeups pageins wired_bytes "
+            "user_ticks system_ticks idle_wakeups interrupt_wakeups pageins wired_bytes "
             "rss_bytes footprint_bytes start exit child_user child_system "
             "child_idle child_interrupt child_pageins child_elapsed read_bytes "
             "written_bytes qos_default qos_maintenance qos_background qos_utility "
@@ -45,6 +45,18 @@ PROC.proc_pidinfo.argtypes = [
 PROC.proc_pidinfo.restype = ctypes.c_int
 
 
+class Timebase(ctypes.Structure):
+    _fields_ = [("numer", ctypes.c_uint32), ("denom", ctypes.c_uint32)]
+
+
+TIMEBASE = Timebase()
+SYSTEM = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+SYSTEM.mach_timebase_info.argtypes = [ctypes.POINTER(Timebase)]
+SYSTEM.mach_timebase_info.restype = ctypes.c_int
+if SYSTEM.mach_timebase_info(ctypes.byref(TIMEBASE)) != 0 or TIMEBASE.denom == 0:
+    raise RuntimeError("Cannot determine the Mach clock timebase")
+
+
 def sample(pid):
     usage = Usage()
     if PROC.proc_pid_rusage(pid, 4, ctypes.byref(usage)) != 0:
@@ -53,10 +65,12 @@ def sample(pid):
     if PROC.proc_pidinfo(pid, 4, 0, ctypes.byref(task), ctypes.sizeof(task)) != ctypes.sizeof(task):
         raise OSError(ctypes.get_errno(), f"Cannot inspect PID {pid}")
     names = (
-        "user_ns system_ns idle_wakeups interrupt_wakeups pageins rss_bytes "
+        "user_ticks system_ticks idle_wakeups interrupt_wakeups pageins rss_bytes "
         "footprint_bytes peak_footprint_bytes read_bytes written_bytes instructions cycles"
     ).split()
     return {"pid": pid, **{name: getattr(usage, name) for name in names},
+            "user_ns": usage.user_ticks * TIMEBASE.numer // TIMEBASE.denom,
+            "system_ns": usage.system_ticks * TIMEBASE.numer // TIMEBASE.denom,
             "threads": task.threads, "context_switches": task.context_switches}
 
 
@@ -94,7 +108,8 @@ def summarize(samples):
     if stable and seconds > 0:
         deltas = {key: sum(end[p][key] - start[p][key] for p in start)
                   for key in ("user_ns", "system_ns", "idle_wakeups", "interrupt_wakeups",
-                              "context_switches", "read_bytes", "written_bytes", "pageins")}
+                              "context_switches", "read_bytes", "written_bytes", "pageins",
+                              "instructions", "cycles")}
         metrics["deltas"] = deltas
         metrics["cpu_percent_one_core"] = (deltas["user_ns"] + deltas["system_ns"]) / seconds / 1e7
         metrics["idle_wakeups_per_second"] = deltas["idle_wakeups"] / seconds
