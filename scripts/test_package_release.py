@@ -22,6 +22,8 @@ class PackagingTests(unittest.TestCase):
         assets.mkdir()
         (assets / "LICENSE").write_text("MIT attribution", encoding="utf-8")
         (assets / "AppIcon.icns").write_bytes(b"icns")
+        for image in ("mouse.png", "mouse_mx_anywhere_3s.png", "mx_vertical.png"):
+            (assets / image).write_bytes(b"image")
         return source, assets
 
     def test_macos_bundle_contains_only_native_executables_and_resources(self):
@@ -34,6 +36,7 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(info["CFBundleExecutable"], "superlight")
             self.assertEqual(info["CFBundleShortVersionString"], "4.0.0")
             self.assertTrue(info["LSUIElement"])
+            self.assertEqual(info["LSMinimumSystemVersion"], "26.0")
             executable = bundle / "Contents/MacOS/superlight"
             if os.name != "nt":
                 self.assertTrue(executable.stat().st_mode & stat.S_IXUSR)
@@ -57,35 +60,43 @@ class PackagingTests(unittest.TestCase):
     def test_existing_archives_and_staging_paths_are_not_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            source, assets = self.fixture(root, "Linux")
+            source, assets = self.fixture(root, "Darwin")
             output = root / "release.zip"
             output.write_bytes(b"existing artifact")
-            bundle = PACKAGE.stage(source, root / "stage", assets, "Linux", "4.0.0-alpha.1")
+            bundle = PACKAGE.stage(source, root / "stage", assets, "Darwin", "4.0.0-alpha.1")
             with self.assertRaises(FileExistsError):
                 PACKAGE.archive(bundle, output)
             self.assertEqual(output.read_bytes(), b"existing artifact")
             with self.assertRaises(FileExistsError):
-                PACKAGE.stage(source, root / "stage", assets, "Linux", "4.0.0-alpha.1")
+                PACKAGE.stage(source, root / "stage", assets, "Darwin", "4.0.0-alpha.1")
 
     def test_missing_executable_fails_before_creating_bundle(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            source, assets = self.fixture(root, "Linux")
+            source, assets = self.fixture(root, "Darwin")
             (source / "superlight-ui").unlink()
             with self.assertRaises(FileNotFoundError):
-                PACKAGE.stage(source, root / "stage", assets, "Linux", "4.0.0-alpha.1")
+                PACKAGE.stage(source, root / "stage", assets, "Darwin", "4.0.0-alpha.1")
             self.assertFalse((root / "stage").exists())
 
     def test_unix_zip_records_executable_permission_bits(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            source, assets = self.fixture(root, "Linux")
-            bundle = PACKAGE.stage(source, root / "stage", assets, "Linux", "4.0.0-alpha.1")
+            source, assets = self.fixture(root, "Darwin")
+            bundle = PACKAGE.stage(source, root / "stage", assets, "Darwin", "4.0.0-alpha.1")
             output = root / "release.zip"
             PACKAGE.archive(bundle, output)
             with zipfile.ZipFile(output) as archive:
-                executable = archive.getinfo("SuperLight/superlight")
+                executable = archive.getinfo("SuperLight.app/Contents/MacOS/superlight")
                 self.assertTrue((executable.external_attr >> 16) & stat.S_IXUSR)
+
+
+    def test_linux_is_not_a_release_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            source, assets = self.fixture(root, "Linux")
+            with self.assertRaises(ValueError):
+                PACKAGE.stage(source, root / "stage", assets, "Linux", "4.0.0-alpha.1")
 
 
 if __name__ == "__main__":

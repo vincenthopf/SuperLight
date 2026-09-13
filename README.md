@@ -1,6 +1,6 @@
 # SuperLight
 
-SuperLight is a native Rust Logitech HID++ mouse remapper for macOS, Windows and Linux. This rewrite targets the behavior available in upstream Mouser v3.6.0 while replacing the Python, Qt and PyInstaller runtime with a small always-on service and an on-demand native settings process.
+SuperLight is a native Rust Logitech HID++ mouse remapper for macOS and Windows. This rewrite targets the behavior available in upstream Mouser v3.6.0 while replacing the Python, Qt and PyInstaller runtime with a small always-on service and an on-demand native settings process.
 
 The compatibility reference is `TomBadash/Mouser@34d93f70b2a84e425698e0d3d748cae2c5d18911`.
 
@@ -33,7 +33,7 @@ The rewrite covers the v3.6 behavior used by the application:
 - sleep, wake, reconnect and fail-open cleanup
 - migration of existing v1 through v9 configuration, including unknown fields
 
-The settings UI intentionally stays basic. It keeps the mouse-oriented interaction while leaving visual theming for later work.
+macOS uses the native SwiftUI Inspector: a system sidebar, toolbar, inspector, forms and the original Mouser mouse artwork. Windows retains the Rust settings editor. The macOS application requires macOS 26 and Xcode 26 to build.
 
 ## Build
 
@@ -42,6 +42,15 @@ Rust `1.98.1` is pinned in `rust-toolchain.toml`.
 ```bash
 cargo build --locked --release -p superlight-service -p superlight-ui --bins
 ```
+
+On macOS, build the native settings executable after the Rust build:
+
+```bash
+bash macos/inspector/build.sh
+cp target/native-macos/superlight-ui target/release/superlight-ui
+```
+
+Use `scripts/package_release.py --binaries target/native-macos` to package the native macOS pair with its required artwork.
 
 Run the service:
 
@@ -98,15 +107,7 @@ Allow SuperLight in System Settings > Privacy & Security > Accessibility and Inp
 
 SuperLight uses native low-level mouse input and `SendInput`. A non-elevated process intentionally does not control elevated applications or secure desktops.
 
-### Linux
-
-SuperLight uses HID++, evdev and uinput. Install the packaged permission rule once:
-
-```bash
-sudo ./permissions/install-linux-permissions.sh
-```
-
-Reconnect the mouse after installing the rule. On native Wayland applications, the default profile is used when the desktop does not expose a portable foreground-application API.
+Linux is no longer a supported release target. Its existing core code remains for reference.
 
 ## Packaging
 
