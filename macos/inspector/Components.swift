@@ -19,7 +19,7 @@ struct MouseDiagram: View {
             ZStack(alignment: .topLeading) {
                 Image(nsImage: mouseImage).resizable().interpolation(.high)
                     .frame(width: width, height: height).position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                    .accessibilityLabel("MX Master mouse illustration from Mouser")
+                    .accessibilityLabel("Mouse control diagram")
                 if showHotspots && (model.device["layout_key"] as? String ?? "").contains("master") {
                     ForEach(points, id: \.0) { point in
                         let active = model.selected == point.0 || (point.0 == 4 && model.selected == 5)

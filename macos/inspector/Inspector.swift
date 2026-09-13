@@ -16,19 +16,37 @@ struct InspectorView: View {
     }
     var body: some View {
         NavigationSplitView {
-            List(selection: $model.page) {
-                Section("Mouse") {
-                    ForEach(Page.allCases, id: \.self) { page in Label(page.rawValue, systemImage: page.icon).tag(page) }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "computermouse.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 30, height: 30)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SuperLight").font(.headline)
+                        Text("Mouse controls").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+                List(selection: $model.page) {
+                    Section("Workspace") {
+                        ForEach(Page.allCases, id: \.self) { page in
+                            Label(page.rawValue, systemImage: page.icon).tag(page)
+                        }
+                    }
+                }
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                Spacer(minLength: 0)
+                SidebarStatus(model: model)
             }
-            .listStyle(.sidebar)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(.regularMaterial)
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
-            .safeAreaInset(edge: .bottom) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : model.status == "Input permissions required" ? "lock.shield" : "info.circle").font(.caption)
-                    Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-                }.frame(maxWidth: .infinity, alignment: .leading).padding()
-            }
         } detail: {
             detail
                 .navigationTitle(model.page == .buttons ? model.deviceName : model.page.rawValue)
@@ -68,6 +86,22 @@ struct InspectorView: View {
         } message: { Text("Load the latest configuration reported by the service.") }
         .alert("SuperLight", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
     }
+    private struct SidebarStatus: View {
+        @Bindable var model: ServiceModel
+        var body: some View {
+            VStack(alignment: .leading, spacing: 5) {
+                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : model.status == "Input permissions required" ? "lock.shield" : "info.circle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
+                Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .overlay(alignment: .top) { Divider() }
+        }
+    }
+
     @ViewBuilder var detail: some View {
         if model.data.profiles.isEmpty {
             ContentUnavailableView {
