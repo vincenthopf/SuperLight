@@ -1,0 +1,26 @@
+{
+  "order": [
+    "baseline",
+    "candidate",
+    "candidate",
+    "baseline",
+    "baseline",
+    "candidate"
+  ],
+  "warmup_s": 30,
+  "sample_s": 60,
+  "workload": "background service, settings closed, physical mouse connected, no scripted input",
+  "utc": "2026-09-13T12:57:54Z",
+  "cpu_calibration": {
+    "ratio": 1.0002624973750263,
+    "numer": 125,
+    "denom": 3
+  },
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.3\nBuildVersion:\t\t25D125\n",
+  "cpu": "Apple M3 Pro",
+  "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=24576099)\t80%; AC attached; not charging present: true\n",
+  "binaries": {
+    "baseline": "b4cf0efdae2d80eca9f84e3da70efe6af5a2d26a8d4a983fd3249c9b9be2e5c9",
+    "candidate": "8041ad1012213f90b944a498297c4445960a038e2b9a9862fbd6c1d547b4a8a7"
+  }
+}

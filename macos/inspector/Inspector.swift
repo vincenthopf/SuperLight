@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 struct InspectorView: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     let images: [String: NSImage]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var discard = false
@@ -134,7 +134,7 @@ struct InspectorView: View {
 }
 
 struct GeneralSettings: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     var body: some View {
         Form {
             Section("Permissions & connection") {

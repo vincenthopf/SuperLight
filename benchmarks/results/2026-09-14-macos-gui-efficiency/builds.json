@@ -1,0 +1,19 @@
+{
+  "baseline": {
+    "swift_flags": [],
+    "ui_sha256": "548325340e25b663a8c8abd375be9ba522c2bc5ee4f84449dd46685feaf624e1",
+    "ui_bytes": 3652832,
+    "service_sha256": "90b6431ba2835b87d4f8d12480ca8dd63b998bad4c711b09489fa3b170ec3d61"
+  },
+  "candidate": {
+    "swift_flags": [
+      "-O",
+      "-whole-module-optimization"
+    ],
+    "ui_sha256": "568cab8c81fc3c43738d9b1313f81fb46fa798167a06c5fec65be6cfdf220b97",
+    "ui_bytes": 3078208,
+    "service_sha256": "90b6431ba2835b87d4f8d12480ca8dd63b998bad4c711b09489fa3b170ec3d61"
+  },
+  "baseline_commit": "528701e68d1e8a3649f38394db953eddd72e0da8",
+  "swift": "Apple Swift version 6.2.1 (swiftlang-6.2.1.4.8 clang-1700.4.4.1)\nTarget: arm64-apple-macosx26.0\n"
+}

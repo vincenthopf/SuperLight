@@ -311,7 +311,7 @@ impl Device {
             let result = unsafe {
                 CFRunLoopRunInMode(
                     kCFRunLoopDefaultMode,
-                    remaining.min(Duration::from_millis(50)).as_secs_f64(),
+                    remaining.min(Duration::from_millis(250)).as_secs_f64(),
                     1,
                 )
             };

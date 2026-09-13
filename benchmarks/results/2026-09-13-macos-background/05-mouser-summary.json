@@ -1,0 +1,54 @@
+{
+  "trial": 5,
+  "name": "mouser",
+  "metrics": {
+    "seconds": 30.025054540950805,
+    "samples": 31,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 145606000,
+      "min": 145442160,
+      "max": 145655152,
+      "first": 145442160,
+      "last": 145655152
+    },
+    "rss_bytes": {
+      "median": 264028160,
+      "min": 263864320,
+      "max": 264077312,
+      "first": 263864320,
+      "last": 264077312
+    },
+    "threads": {
+      "median": 12,
+      "min": 12,
+      "max": 12,
+      "first": 12,
+      "last": 12
+    },
+    "deltas": {
+      "user_ns": 468175083,
+      "system_ns": 112994042,
+      "idle_wakeups": 41,
+      "interrupt_wakeups": 938,
+      "context_switches": 9197,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 1019870112,
+      "cycles": 1306002541
+    },
+    "cpu_percent_one_core": 1.9356138860875356,
+    "idle_wakeups_per_second": 1.3655262455587083,
+    "interrupt_wakeups_per_second": 31.2405760569285,
+    "context_switches_per_second": 306.3108507415473
+  },
+  "settings_window_visible": false,
+  "hardware": {
+    "engine_started_and_device_connected": true,
+    "disconnect_logged": false,
+    "name": "MX Master 3S",
+    "transport": "Bluetooth",
+    "dpi": 1600
+  }
+}

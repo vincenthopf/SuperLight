@@ -18,6 +18,6 @@ case "$(uname -m)" in
 esac
 mkdir -p "$out"
 cargo build --locked --release --target "$rust_target" -p superlight-macos-bridge -p superlight-service --bins --lib
-xcrun swiftc -parse-as-library -warnings-as-errors "$root"/macos/inspector/*.swift -import-objc-header "$root/macos/inspector/Bridge.h" "$target_dir/$rust_target/release/libsuperlight_macos_bridge.a" -o "$out/superlight-ui" -framework SwiftUI -framework AppKit -target "$swift_target"
+xcrun swiftc -O -whole-module-optimization -parse-as-library -warnings-as-errors "$root"/macos/inspector/*.swift -import-objc-header "$root/macos/inspector/Bridge.h" "$target_dir/$rust_target/release/libsuperlight_macos_bridge.a" -o "$out/superlight-ui" -framework SwiftUI -framework AppKit -target "$swift_target"
 cp "$target_dir/$rust_target/release/superlight" "$out/superlight"
 printf '%s\n' "$out"

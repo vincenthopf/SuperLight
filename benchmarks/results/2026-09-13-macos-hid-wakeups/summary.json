@@ -1,0 +1,135 @@
+{
+  "baseline": {
+    "cpu_percent_one_core": {
+      "median": 0.555239074340624,
+      "min": 0.2631582542041111,
+      "max": 1.070301524731563,
+      "trials": [
+        1.070301524731563,
+        0.555239074340624,
+        0.2631582542041111
+      ]
+    },
+    "interrupt_wakeups_per_second": {
+      "median": 17.96539645090097,
+      "min": 14.898885377105922,
+      "max": 20.199604761114305,
+      "trials": [
+        14.898885377105922,
+        17.96539645090097,
+        20.199604761114305
+      ]
+    },
+    "idle_wakeups_per_second": {
+      "median": 1.616552370813909,
+      "min": 0.23331587838868334,
+      "max": 1.6333013750735987,
+      "trials": [
+        0.23331587838868334,
+        1.616552370813909,
+        1.6333013750735987
+      ]
+    },
+    "context_switches_per_second": {
+      "median": 163.12180005697465,
+      "min": 107.89788879822937,
+      "max": 303.7439428222959,
+      "trials": [
+        303.7439428222959,
+        163.12180005697465,
+        107.89788879822937
+      ]
+    },
+    "rss_bytes": {
+      "median": 46366720,
+      "min": 46186496,
+      "max": 46563328,
+      "trials": [
+        46563328,
+        46366720,
+        46186496
+      ]
+    },
+    "footprint_bytes": {
+      "median": 13943624,
+      "min": 13779784,
+      "max": 14123824,
+      "trials": [
+        14123824,
+        13943624,
+        13779784
+      ]
+    }
+  },
+  "candidate": {
+    "cpu_percent_one_core": {
+      "median": 0.45673154307652936,
+      "min": 0.2515622145863872,
+      "max": 0.9497294270536912,
+      "trials": [
+        0.9497294270536912,
+        0.45673154307652936,
+        0.2515622145863872
+      ]
+    },
+    "interrupt_wakeups_per_second": {
+      "median": 4.449853825419353,
+      "min": 4.416318308064948,
+      "max": 4.516578025738068,
+      "trials": [
+        4.449853825419353,
+        4.416318308064948,
+        4.516578025738068
+      ]
+    },
+    "idle_wakeups_per_second": {
+      "median": 0.199993430355926,
+      "min": 0.1499881689531492,
+      "max": 0.28332777283227734,
+      "trials": [
+        0.199993430355926,
+        0.1499881689531492,
+        0.28332777283227734
+      ]
+    },
+    "context_switches_per_second": {
+      "median": 116.19083488237291,
+      "min": 81.29840446328522,
+      "max": 228.54249253923444,
+      "trials": [
+        228.54249253923444,
+        116.19083488237291,
+        81.29840446328522
+      ]
+    },
+    "rss_bytes": {
+      "median": 46415872,
+      "min": 46383104,
+      "max": 46661632,
+      "trials": [
+        46415872,
+        46661632,
+        46383104
+      ]
+    },
+    "footprint_bytes": {
+      "median": 13894472,
+      "min": 13878016,
+      "max": 14156616,
+      "trials": [
+        13894472,
+        14156616,
+        13878016
+      ]
+    }
+  },
+  "baseline_divided_by_candidate": {
+    "cpu_percent_one_core": 1.215679281970654,
+    "interrupt_wakeups_per_second": 4.03730035990742,
+    "idle_wakeups_per_second": 8.083027367133756,
+    "context_switches_per_second": 1.403912797615344,
+    "rss_bytes": 0.9989410518884575,
+    "footprint_bytes": 1.0035375219727674
+  },
+  "manual_test": "User reported the temporary optimized build seems to be working fine after being asked to test media buttons, thumb wheel, and gestures. No instrumented input-latency measurement."
+}

@@ -1,0 +1,41 @@
+{
+  "utc": "2026-09-13T12:32:14Z",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.3\nBuildVersion:\t\t25D125\n",
+  "cpu": "Apple M3 Pro",
+  "memory_bytes": 38654705664,
+  "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=24576099)\t80%; AC attached; not charging present: true\n",
+  "warmup_s": 30.0,
+  "sample_s": 30.0,
+  "workload": "idle, physical Logitech connected, no scripted input",
+  "settings_window": "closed/hidden",
+  "cpu_calibration": {
+    "process_time_ns": 100002000,
+    "rusage_ns": 100044751,
+    "ratio": 1.000427501449971,
+    "numer": 125,
+    "denom": 3
+  },
+  "order": [
+    "mouser",
+    "superlight",
+    "superlight",
+    "mouser",
+    "mouser",
+    "superlight"
+  ],
+  "executables_sha256": {
+    "mouser": "a728bc260206dd1d08d75fa97258a171ebd565ee287902d799b28bebe2eb0b3e",
+    "superlight": "e1003575042cec52ebc6f31a4f3c3ffdebaeeb2470f695eaf269d1bcb3f38221"
+  },
+  "mouser_release": "v3.7.3",
+  "mouser_release_commit": "bd397ea4d26b5f0a39e672c58e18e2eb62d14d74",
+  "superlight_build": "Installed local Rust service, 4.0.0-alpha.1. No source revision embedded. Identified by executable SHA-256.",
+  "python": "3.12.12",
+  "pyobjc_framework_quartz": "12.2.2",
+  "limitations": [
+    "One M3 Pro desktop, AC power, ordinary background applications, no controlled input replay.",
+    "Only three short trials per app. Background workload without settings UI, not foreground UI or active remapping.",
+    "CPU ranges overlap. Wakeups are not measured power consumption or battery life.",
+    "Prior exploratory results are excluded. Mach tick conversion is calibrated against process_time_ns."
+  ]
+}

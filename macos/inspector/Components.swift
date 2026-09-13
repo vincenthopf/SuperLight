@@ -4,7 +4,7 @@ import AppKit
 struct MouseDiagram: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovered: Int?
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     var showHotspots = true
     let mouseImage: NSImage
     let points: [(Int, CGFloat, CGFloat)] = [(0, 0.33, 0.45), (1, 0.70, 0.63), (2, 0.65, 0.40), (3, 0.60, 0.48), (4, 0.59, 0.345), (6, 0.43, 0.25)]
@@ -48,7 +48,7 @@ struct MouseDiagram: View {
 }
 
 struct ButtonList: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     var body: some View {
         List(selection: $model.selected) {
             Section("Controls") {
@@ -68,7 +68,7 @@ struct ButtonList: View {
 }
 
 struct ActionEditor: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     @State private var pickerOpen = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -105,7 +105,7 @@ struct ActionEditor: View {
 }
 
 struct ActionChooser: View {
-    @ObservedObject var model: ServiceModel
+    @Bindable var model: ServiceModel
     @Environment(\.dismiss) var dismiss
     @State private var query = ""
     @State private var shortcut = ""

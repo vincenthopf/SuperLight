@@ -1,0 +1,109 @@
+{
+  "config_unchanged": true,
+  "health": {
+    "native_ready": true,
+    "paused": false,
+    "suspended": false,
+    "permissions": {
+      "listen": true,
+      "inject": true,
+      "description": "Accessibility and Input Monitoring are available"
+    },
+    "device": {
+      "name": "MX Master 3S",
+      "model_key": "mx_master_3s",
+      "layout_key": "mx_master_3s",
+      "product_id": 45108,
+      "receiver_slot": 255,
+      "transport": "Bluetooth",
+      "backend": "IOKit",
+      "dpi": 1600,
+      "dpi_min": 200,
+      "dpi_max": 8000,
+      "smart_shift": {
+        "mode": "ratchet",
+        "enabled": false,
+        "threshold": 25
+      },
+      "battery": 90,
+      "supports_dpi": true,
+      "supports_smart_shift": true,
+      "supports_gesture": true,
+      "supports_mode_shift": true,
+      "supports_dpi_switch": false,
+      "raw_xy": true,
+      "controls": [
+        {
+          "index": 0,
+          "cid": 80,
+          "task": 56,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 80
+        },
+        {
+          "index": 1,
+          "cid": 81,
+          "task": 57,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 81
+        },
+        {
+          "index": 2,
+          "cid": 82,
+          "task": 58,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 82
+        },
+        {
+          "index": 3,
+          "cid": 83,
+          "task": 60,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 83
+        },
+        {
+          "index": 4,
+          "cid": 86,
+          "task": 62,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 86
+        },
+        {
+          "index": 5,
+          "cid": 195,
+          "task": 169,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 195
+        },
+        {
+          "index": 6,
+          "cid": 196,
+          "task": 157,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 196
+        },
+        {
+          "index": 7,
+          "cid": 215,
+          "task": 180,
+          "flags": 928,
+          "mapping_flags": 0,
+          "mapped_to": 215
+        }
+      ]
+    },
+    "dropped_events": 0,
+    "errors": []
+  },
+  "pids": [
+    80151,
+    80152
+  ]
+}

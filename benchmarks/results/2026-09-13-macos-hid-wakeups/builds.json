@@ -1,0 +1,24 @@
+{
+  "baseline": {
+    "source_sha256": "e977c544b09b347edc66ec3371c59ddc2583aed1033d5a53dd0d62495b3321b5",
+    "executable_sha256": "b4cf0efdae2d80eca9f84e3da70efe6af5a2d26a8d4a983fd3249c9b9be2e5c9"
+  },
+  "candidate": {
+    "source_sha256": "80e4caa929d0613bee2ce442c6b31e9bc36ceeb7b1079136e400e6f9c5631b68",
+    "executable_sha256": "8041ad1012213f90b944a498297c4445960a038e2b9a9862fbd6c1d547b4a8a7"
+  },
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--release",
+    "--target",
+    "aarch64-apple-darwin",
+    "-p",
+    "superlight-service",
+    "--bin",
+    "superlight"
+  ],
+  "baseline_commit": "2a30ad83197b9887e7082f6aaccd4490a57cc0e5",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n"
+}

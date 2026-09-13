@@ -1,0 +1,317 @@
+{
+  "trial": 3,
+  "name": "candidate",
+  "visible_combined": {
+    "seconds": 30.037362791132182,
+    "samples": 31,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 61785744,
+      "min": 61785744,
+      "max": 61785744,
+      "first": 61785744,
+      "last": 61785744
+    },
+    "rss_bytes": {
+      "median": 170033152,
+      "min": 170033152,
+      "max": 170033152,
+      "first": 170033152,
+      "last": 170033152
+    },
+    "threads": {
+      "median": 14,
+      "min": 14,
+      "max": 14,
+      "first": 14,
+      "last": 14
+    },
+    "deltas": {
+      "user_ns": 19721959,
+      "system_ns": 31228500,
+      "idle_wakeups": 16,
+      "interrupt_wakeups": 144,
+      "context_switches": 765,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 29014252,
+      "cycles": 46554729
+    },
+    "cpu_percent_one_core": 0.16962360961676007,
+    "idle_wakeups_per_second": 0.5326699321527528,
+    "interrupt_wakeups_per_second": 4.794029389374775,
+    "context_switches_per_second": 25.46828113105349
+  },
+  "visible_ui": {
+    "seconds": 30.037362791132182,
+    "samples": 31,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 49087352,
+      "min": 49087352,
+      "max": 49087352,
+      "first": 49087352,
+      "last": 49087352
+    },
+    "rss_bytes": {
+      "median": 119504896,
+      "min": 119504896,
+      "max": 119504896,
+      "first": 119504896,
+      "last": 119504896
+    },
+    "threads": {
+      "median": 4,
+      "min": 4,
+      "max": 4,
+      "first": 4,
+      "last": 4
+    },
+    "deltas": {
+      "user_ns": 121125,
+      "system_ns": 676917,
+      "idle_wakeups": 1,
+      "interrupt_wakeups": 9,
+      "context_switches": 19,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 430522,
+      "cycles": 618686
+    },
+    "cpu_percent_one_core": 0.0026568311124690446,
+    "idle_wakeups_per_second": 0.03329187075954705,
+    "interrupt_wakeups_per_second": 0.29962683683592345,
+    "context_switches_per_second": 0.6325455444313939
+  },
+  "visible_service": {
+    "seconds": 30.037362791132182,
+    "samples": 31,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 12698392,
+      "min": 12698392,
+      "max": 12698392,
+      "first": 12698392,
+      "last": 12698392
+    },
+    "rss_bytes": {
+      "median": 50528256,
+      "min": 50528256,
+      "max": 50528256,
+      "first": 50528256,
+      "last": 50528256
+    },
+    "threads": {
+      "median": 10,
+      "min": 10,
+      "max": 10,
+      "first": 10,
+      "last": 10
+    },
+    "deltas": {
+      "user_ns": 19600834,
+      "system_ns": 30551583,
+      "idle_wakeups": 15,
+      "interrupt_wakeups": 135,
+      "context_switches": 746,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 28583730,
+      "cycles": 45936043
+    },
+    "cpu_percent_one_core": 0.16696677850429104,
+    "idle_wakeups_per_second": 0.49937806139320573,
+    "interrupt_wakeups_per_second": 4.494402552538851,
+    "context_switches_per_second": 24.835735586622096
+  },
+  "hidden_combined": {
+    "seconds": 20.006731082918122,
+    "samples": 21,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 61818512,
+      "min": 61818512,
+      "max": 61818512,
+      "first": 61818512,
+      "last": 61818512
+    },
+    "rss_bytes": {
+      "median": 170065920,
+      "min": 170065920,
+      "max": 170065920,
+      "first": 170065920,
+      "last": 170065920
+    },
+    "threads": {
+      "median": 15,
+      "min": 15,
+      "max": 15,
+      "first": 15,
+      "last": 15
+    },
+    "deltas": {
+      "user_ns": 13852999,
+      "system_ns": 20717875,
+      "idle_wakeups": 14,
+      "interrupt_wakeups": 96,
+      "context_switches": 513,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 19459185,
+      "cycles": 32250318
+    },
+    "cpu_percent_one_core": 0.17279621471753995,
+    "idle_wakeups_per_second": 0.6997644913592751,
+    "interrupt_wakeups_per_second": 4.798385083606458,
+    "context_switches_per_second": 25.641370290522012
+  },
+  "hidden_ui": {
+    "seconds": 20.006731082918122,
+    "samples": 21,
+    "stable_process_set": true,
+    "footprint_bytes": {
+      "median": 49120120,
+      "min": 49120120,
+      "max": 49120120,
+      "first": 49120120,
+      "last": 49120120
+    },
+    "rss_bytes": {
+      "median": 119537664,
+      "min": 119537664,
+      "max": 119537664,
+      "first": 119537664,
+      "last": 119537664
+    },
+    "threads": {
+      "median": 5,
+      "min": 5,
+      "max": 5,
+      "first": 5,
+      "last": 5
+    },
+    "deltas": {
+      "user_ns": 349916,
+      "system_ns": 678333,
+      "idle_wakeups": 1,
+      "interrupt_wakeups": 7,
+      "context_switches": 13,
+      "read_bytes": 0,
+      "written_bytes": 0,
+      "pageins": 0,
+      "instructions": 418948,
+      "cycles": 851031
+    },
+    "cpu_percent_one_core": 0.005139515274826309,
+    "idle_wakeups_per_second": 0.04998317795423394,
+    "interrupt_wakeups_per_second": 0.34988224567963755,
+    "context_switches_per_second": 0.6497813134050412
+  },
+  "health_after": {
+    "native_ready": true,
+    "paused": false,
+    "suspended": false,
+    "permissions": {
+      "listen": true,
+      "inject": true,
+      "description": "Accessibility and Input Monitoring are available"
+    },
+    "device": {
+      "name": "MX Master 3S",
+      "model_key": "mx_master_3s",
+      "layout_key": "mx_master_3s",
+      "product_id": 45108,
+      "receiver_slot": 255,
+      "transport": "Bluetooth",
+      "backend": "IOKit",
+      "dpi": 1600,
+      "dpi_min": 200,
+      "dpi_max": 8000,
+      "smart_shift": {
+        "mode": "ratchet",
+        "enabled": false,
+        "threshold": 25
+      },
+      "battery": 90,
+      "supports_dpi": true,
+      "supports_smart_shift": true,
+      "supports_gesture": true,
+      "supports_mode_shift": true,
+      "supports_dpi_switch": false,
+      "raw_xy": true,
+      "controls": [
+        {
+          "index": 0,
+          "cid": 80,
+          "task": 56,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 80
+        },
+        {
+          "index": 1,
+          "cid": 81,
+          "task": 57,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 81
+        },
+        {
+          "index": 2,
+          "cid": 82,
+          "task": 58,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 82
+        },
+        {
+          "index": 3,
+          "cid": 83,
+          "task": 60,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 83
+        },
+        {
+          "index": 4,
+          "cid": 86,
+          "task": 62,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 86
+        },
+        {
+          "index": 5,
+          "cid": 195,
+          "task": 169,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 195
+        },
+        {
+          "index": 6,
+          "cid": 196,
+          "task": 157,
+          "flags": 1329,
+          "mapping_flags": 1,
+          "mapped_to": 196
+        },
+        {
+          "index": 7,
+          "cid": 215,
+          "task": 180,
+          "flags": 928,
+          "mapping_flags": 0,
+          "mapped_to": 215
+        }
+      ]
+    },
+    "dropped_events": 0,
+    "errors": []
+  },
+  "restored_visibility": true
+}
