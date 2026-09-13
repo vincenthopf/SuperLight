@@ -23,9 +23,7 @@ struct InspectorView: View {
                         .foregroundStyle(Color.accentColor)
                         .frame(width: 30, height: 30)
                         .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("SuperLight").font(.headline)
-                    }
+                    Text("SuperLight").font(.headline)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 16)
@@ -62,7 +60,7 @@ struct InspectorView: View {
                         }
                     }
                 }
-                .inspector(isPresented: Binding(get: { showInspector && model.page == .buttons && !model.data.profiles.isEmpty }, set: { showInspector = $0 })) {
+                .inspector(isPresented: Binding(get: { showInspector && model.page == .buttons && !model.data.profiles.isEmpty }, set: { if model.page == .buttons { showInspector = $0 } })) {
                     Form {
                         Section { profilePicker }
                         Section("Selected control") {
