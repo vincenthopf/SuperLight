@@ -10,7 +10,7 @@ use std::{
 };
 use superlight_core::{
     actions::Action,
-    devices::{self, Family},
+    devices,
     gesture::Source,
     hidpp::{self, SmartShift},
     input::{Decision, Router},
@@ -218,19 +218,13 @@ fn probe<T: Transport>(
         &controls,
         spec.map_or(&hidpp::GESTURE_CIDS, |spec| spec.gesture_cids),
     );
-    let master_fallback =
-        controls.is_empty() && spec.is_some_and(|spec| spec.family == Family::Master);
-    let supports_gesture = master_fallback
-        || controls
-            .iter()
-            .any(|control| gestures.contains(&control.cid));
-    let supports_mode_shift = master_fallback
-        || controls
-            .iter()
-            .any(|control| control.cid == hidpp::MODE_SHIFT_CID);
+    let supports_gesture = !gestures.is_empty();
+    let supports_mode_shift = controls
+        .iter()
+        .any(|control| control.cid == hidpp::MODE_SHIFT_CID && control.flags & 0x0020 != 0);
     let supports_dpi_switch = controls
         .iter()
-        .any(|control| control.cid == hidpp::DPI_SWITCH_CID);
+        .any(|control| control.cid == hidpp::DPI_SWITCH_CID && control.flags & 0x0020 != 0);
     let model_key = spec.map_or("generic", |spec| spec.key).to_owned();
     let status = DeviceStatus {
         name: if name.is_empty() {
@@ -649,3 +643,7 @@ mod tests {
         assert!(!pump.busy());
     }
 }
+
+#[cfg(test)]
+#[path = "hardware_fixtures.rs"]
+mod hardware_fixtures;

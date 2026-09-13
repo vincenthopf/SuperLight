@@ -1,0 +1,55 @@
+name: Mouse compatibility report
+description: Report results for one mouse, operating system and connection type.
+title: "compatibility: "
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Exact mouse model
+      description: Include Mac, Business, left-handed or other variants.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: SuperLight release or commit and OS version
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Connection tested
+      options:
+        - Bluetooth
+        - Bolt
+        - Unifying
+        - Wired USB
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Device diagnostics
+      description: Run superlight --diagnostics with the service running. Review the output before posting. If it cannot connect, include the error instead. Do not paste --status, which includes your configuration.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Hardware checks
+      description: Mark each item pass, fail, not available, or not tested. Do not infer results from another transport.
+      value: |
+        Discovery:
+        Middle / Back / Forward:
+        Gesture click and directions:
+        Main wheel / thumb wheel / tilt:
+        DPI / SmartShift / battery:
+        Pause and resume:
+        Disconnect while a mapped button is held:
+        Reconnect (10 cycles):
+        Sleep and wake (3 cycles):
+        Quit restores ordinary mouse behavior:
+        30-minute active use:
+    validations:
+      required: true

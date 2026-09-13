@@ -231,7 +231,11 @@ pub fn gesture_candidates(controls: &[Control], preferred: &[u16]) -> Vec<u16> {
     };
     let mut result = Vec::with_capacity(MAX_CONTROLS);
     for &cid in preferred {
-        if controls.iter().any(|c| c.cid == cid) && !result.contains(&cid) {
+        if controls
+            .iter()
+            .any(|c| c.cid == cid && c.flags & 0x0020 != 0)
+            && !result.contains(&cid)
+        {
             result.push(cid);
         }
     }
@@ -246,11 +250,7 @@ pub fn gesture_candidates(controls: &[Control], preferred: &[u16]) -> Vec<u16> {
             result.push(control.cid);
         }
     }
-    if result.is_empty() {
-        preferred.to_vec()
-    } else {
-        result
-    }
+    result
 }
 
 pub fn signed_xy(params: &[u8]) -> Option<(i16, i16)> {
@@ -447,6 +447,6 @@ mod tests {
             ..Control::default()
         }];
         assert_eq!(gesture_candidates(&controls, &[]), [241]);
-        assert_eq!(gesture_candidates(&[], &[]), [195, 215]);
+        assert!(gesture_candidates(&[], &[]).is_empty());
     }
 }

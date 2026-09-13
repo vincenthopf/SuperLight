@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-14",
+  "source_commit": "0b6bd6b",
+  "binary_sha256": "010ad786921f51c0d012c5a7c8633e0d6fa2f87bdeadfc4679bc286a16585fba",
+  "test_type": "automated connected-device smoke, not a manual button or physical reconnect test",
+  "diagnostics": {
+    "schema_version": 1,
+    "version": "4.0.0-alpha.1",
+    "os": "macos",
+    "architecture": "aarch64",
+    "native_ready": true,
+    "paused": false,
+    "suspended": false,
+    "permissions": {
+      "listen": true,
+      "inject": true
+    },
+    "dropped_events": 0,
+    "device": {
+      "model": "mx_master_3s",
+      "product_id": "0xb034",
+      "transport": "Bluetooth",
+      "backend": "IOKit",
+      "receiver_slot": 255,
+      "dpi": 1600,
+      "dpi_range": [
+        200,
+        8000
+      ],
+      "smart_shift": {
+        "mode": "ratchet",
+        "enabled": false,
+        "threshold": 25
+      },
+      "battery": 90,
+      "supports_dpi": true,
+      "supports_smart_shift": true,
+      "supports_gesture": true,
+      "supports_mode_shift": true,
+      "supports_dpi_switch": false,
+      "raw_xy": true,
+      "controls": [
+        {
+          "index": 0,
+          "cid": 80,
+          "task": 56,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 80
+        },
+        {
+          "index": 1,
+          "cid": 81,
+          "task": 57,
+          "flags": 1025,
+          "mapping_flags": 0,
+          "mapped_to": 81
+        },
+        {
+          "index": 2,
+          "cid": 82,
+          "task": 58,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 82
+        },
+        {
+          "index": 3,
+          "cid": 83,
+          "task": 60,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 83
+        },
+        {
+          "index": 4,
+          "cid": 86,
+          "task": 62,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 86
+        },
+        {
+          "index": 5,
+          "cid": 195,
+          "task": 169,
+          "flags": 1329,
+          "mapping_flags": 0,
+          "mapped_to": 195
+        },
+        {
+          "index": 6,
+          "cid": 196,
+          "task": 157,
+          "flags": 1329,
+          "mapping_flags": 1,
+          "mapped_to": 196
+        },
+        {
+          "index": 7,
+          "cid": 215,
+          "task": 180,
+          "flags": 928,
+          "mapping_flags": 0,
+          "mapped_to": 215
+        }
+      ]
+    }
+  },
+  "checks": {
+    "discovery": true,
+    "pause_resume": true,
+    "service_reconnect_cycles": 3,
+    "no_dropped_events": true,
+    "no_service_errors": true,
+    "installed_binary_and_configuration_unchanged": true,
+    "installed_mouse_reconnected": true
+  },
+  "not_tested": [
+    "other_mouse_models",
+    "physical_button_actions_on_this_commit",
+    "physical_disconnect_reconnect",
+    "sleep_wake",
+    "Windows_hardware",
+    "long_run_memory",
+    "latency"
+  ]
+}

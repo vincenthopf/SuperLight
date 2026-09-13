@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "scope": "Recognition is not feature support. Features require a successful runtime probe. Synthetic fixtures are not physical tests.",
+  "models": [
+    {
+      "model": "mx_master_4",
+      "name": "MX Master 4",
+      "product_ids": [
+        "0xb042",
+        "0xb048"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_master_3s",
+      "name": "MX Master 3S",
+      "product_ids": [
+        "0xb034",
+        "0xb043"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": [
+        {
+          "os": "macOS 26.3",
+          "architecture": "arm64",
+          "transport": "Bluetooth",
+          "date": "2026-09-14",
+          "build": "90b6431ba2835b87d4f8d12480ca8dd63b998bad4c711b09489fa3b170ec3d61",
+          "checked": [
+            "discovery",
+            "back_play_pause",
+            "forward_next_track",
+            "thumbwheel_volume",
+            "gesture_button"
+          ],
+          "not_checked": [
+            "sleep_wake",
+            "reconnect_storm",
+            "long_run_memory",
+            "input_latency"
+          ],
+          "evidence": "User-reported functional checks and local service status. Other transports and Windows remain unverified."
+        }
+      ],
+      "automated_smoke_evidence": "compatibility/evidence/2026-09-14-mx-master-3s-bluetooth.json"
+    },
+    {
+      "model": "mx_master_3",
+      "name": "MX Master 3",
+      "product_ids": [
+        "0xb023",
+        "0xb028"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_master_2s",
+      "name": "MX Master 2S",
+      "product_ids": [
+        "0xb019"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_master",
+      "name": "MX Master",
+      "product_ids": [
+        "0xb012"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_vertical",
+      "name": "MX Vertical",
+      "product_ids": [
+        "0xb020"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_devices.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_anywhere_3s",
+      "name": "MX Anywhere 3S",
+      "product_ids": [
+        "0xb037"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_anywhere_3",
+      "name": "MX Anywhere 3",
+      "product_ids": [
+        "0xb025",
+        "0xb02d"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_anywhere_2s",
+      "name": "MX Anywhere 2S",
+      "product_ids": [
+        "0xb01a"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "mx_anywhere_2",
+      "name": "MX Anywhere 2",
+      "product_ids": [
+        "0xb013",
+        "0xb01f"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "m650",
+      "name": "M650 Signature",
+      "product_ids": [
+        "0xb02a"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "m585_m590",
+      "name": "M585/M590 Multi-Device Mouse",
+      "product_ids": [],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    },
+    {
+      "model": "m720_triathlon",
+      "name": "M720 Triathlon Multi-Device Mouse",
+      "product_ids": [
+        "0xb015"
+      ],
+      "catalog_source": "https://github.com/TomBadash/Mouser/blob/e780641d3e709f914d6273985da9ac2ab85a7322/core/logi_device_catalog.py",
+      "recognition": "catalogued",
+      "physical_verification": []
+    }
+  ],
+  "unverified_families": [
+    {
+      "family": "Lift",
+      "status": "not_validated",
+      "reason": "Not explicitly catalogued. Generic HID++ probing requires a vendor interface and mouse identity."
+    },
+    {
+      "family": "Ergo / trackballs",
+      "status": "not_validated",
+      "reason": "Trackball device identity is accepted, but no local hardware verification exists."
+    },
+    {
+      "family": "G-series",
+      "status": "not_validated",
+      "reason": "Onboard-profile and HID++ 1.0 remapping are not implemented. REPROG_CONTROLS_V4 is required."
+    },
+    {
+      "family": "Other M-series / wired mice",
+      "status": "not_validated",
+      "reason": "No family-wide claim. Devices without REPROG_CONTROLS_V4 are not connected by the service."
+    }
+  ],
+  "transports": {
+    "Bluetooth": "Local protocol fixtures only, unless a model has matching physical evidence.",
+    "Bolt": "Local protocol fixtures only, unless a model has matching physical evidence.",
+    "Unifying": "Local protocol fixtures only, unless a model has matching physical evidence.",
+    "USB": "Local protocol fixtures only, unless a model has matching physical evidence."
+  },
+  "platforms": [
+    "macOS arm64",
+    "Windows x64",
+    "Windows arm64"
+  ],
+  "limitations": [
+    "Model recognition does not guarantee successful remapping or parity with Logi Options+.",
+    "MX Master 4 Actions Ring, haptics and independent Sense Panel mapping are not implemented.",
+    "DPI ranges use catalogue limits or conservative defaults, not per-sensor discovery.",
+    "Only one active mouse is controlled at a time."
+  ]
+}
