@@ -294,8 +294,7 @@ mod tests {
         editor.receive(snapshot("service-a", 1));
         assert!(editor.set_action(0, "custom:not_a_real_key").is_err());
         assert!(editor.set_action(99, "copy").is_err());
-        editor.draft["profiles"]["default"]["mappings"]["middle"] =
-            json!("custom:not_a_real_key");
+        editor.draft["profiles"]["default"]["mappings"]["middle"] = json!("custom:not_a_real_key");
         assert!(editor.apply_request().is_err());
     }
 
