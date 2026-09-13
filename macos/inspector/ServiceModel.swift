@@ -273,6 +273,12 @@ enum NativeBridge {
             request(["expected_instance": instance, "request": ["command": "apply", "expected_revision": revision, "config": config]]) { response in self.accept(response, saved: true) }
         } catch let failure { self.error = failure.localizedDescription; saving = false }
     }
+    func openPrivacySettings(inputMonitoring: Bool = false) {
+        let section = inputMonitoring ? "Privacy_ListenEvent" : "Privacy_Accessibility"
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?" + section) else { return }
+        if !NSWorkspace.shared.open(url) { error = "Open System Settings → Privacy & Security manually." }
+    }
+
     func startService() {
         guard !busy else { return }
         attemptedStart = true

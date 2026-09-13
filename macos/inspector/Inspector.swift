@@ -25,7 +25,7 @@ struct InspectorView: View {
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
             .safeAreaInset(edge: .bottom) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : "info.circle").font(.caption)
+                    Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle" : model.status == "Input permissions required" ? "lock.shield" : "info.circle").font(.caption)
                     Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                 }.frame(maxWidth: .infinity, alignment: .leading).padding()
             }
@@ -82,7 +82,7 @@ struct InspectorView: View {
                         Label(model.status, systemImage: "info.circle").font(.callout)
                         Spacer()
                         if model.status == "Input permissions required" {
-                            Button("Review permissions") { model.page = .settings }
+                            Button("Open System Settings") { model.openPrivacySettings() }
                         }
                     }.padding().background(.quaternary.opacity(0.5))
                     .transition(.opacity)
@@ -141,6 +141,11 @@ struct GeneralSettings: View {
                 LabeledContent("Input Monitoring", value: model.permission["listen"] as? Bool == true ? "Allowed" : "Required")
                 LabeledContent("Accessibility", value: model.permission["inject"] as? Bool == true ? "Allowed" : "Required")
                 Text(model.permission["description"] as? String ?? "").font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Accessibility settings") { model.openPrivacySettings() }
+                    Button("Input Monitoring settings") { model.openPrivacySettings(inputMonitoring: true) }
+                }
+                Text("Enable the installed SuperLight.app in both lists. No permission is changed automatically.").font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("Request permissions") { model.command("request_permissions") }.disabled(model.busy || !model.connected)
                     Button("Reconnect mouse") { model.command("reconnect") }.disabled(model.busy || !model.connected)
