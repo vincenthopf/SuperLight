@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import pathlib
 import plistlib
 import stat
@@ -34,7 +35,8 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(info["CFBundleShortVersionString"], "4.0.0")
             self.assertTrue(info["LSUIElement"])
             executable = bundle / "Contents/MacOS/superlight"
-            self.assertTrue(executable.stat().st_mode & stat.S_IXUSR)
+            if os.name != "nt":
+                self.assertTrue(executable.stat().st_mode & stat.S_IXUSR)
             self.assertEqual(sorted(path.name for path in executable.parent.iterdir()), ["superlight", "superlight-ui"])
             self.assertTrue((bundle / "Contents/Resources/LICENSE").exists())
 
