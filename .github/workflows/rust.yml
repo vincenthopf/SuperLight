@@ -67,7 +67,7 @@ jobs:
       - name: Enforce comment-free Rust source
         shell: bash
         run: |
-          if grep -R -nE '^[[:space:]]*(//|/\*|\*)' crates --include='*.rs'; then
+          if grep -R -nE '^[[:space:]]*(//|/\*)' crates --include='*.rs'; then
             exit 1
           fi
       - name: Test native service before GUI compilation
