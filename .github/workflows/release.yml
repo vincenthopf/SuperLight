@@ -8,50 +8,13 @@ on:
 permissions:
   contents: read
 
-env:
-  CARGO_TERM_COLOR: never
-  MACOSX_DEPLOYMENT_TARGET: '11.0'
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: windows-latest
-            label: windows-x64
-          - runner: macos-26
-            label: macos-arm64
-          - runner: macos-15-intel
-            label: macos-x64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          persist-credentials: false
-      - name: Verify source
-        run: |
-          cargo fmt --all -- --check
-          cargo test --locked --workspace --all-targets
-          cargo clippy --locked --workspace --all-targets -- -D warnings
-      - name: Build optimized executables
-        run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
-      - name: Build native macOS settings app
-        if: runner.os == 'macOS'
-        run: |
-          bash macos/inspector/build.sh
-          cp target/native-macos/superlight-ui target/release/superlight-ui
-      - name: Package native application
-        run: python scripts/package_release.py --output dist
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: release-${{ matrix.label }}
-          path: |
-            dist/*.zip
-            dist/*.sha256
-          if-no-files-found: error
-          retention-days: 14
+    uses: ./.github/workflows/rust.yml
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
@@ -66,10 +29,13 @@ jobs:
     steps:
       - name: Download release packages
         run: gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --pattern 'release-*' --dir dist
-      - name: Publish release
+      - name: Verify checksums and publish
         shell: bash
         run: |
           set -euo pipefail
+          for package in dist/release-*; do (cd "$package" && sha256sum --check *.sha256); done
           mapfile -t files < <(find dist -type f \( -name '*.zip' -o -name '*.sha256' \) -print | sort)
           test "${#files[@]}" -eq 6
-          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease --latest=false); fi
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "${flags[@]}"

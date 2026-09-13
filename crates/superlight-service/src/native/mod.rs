@@ -2,12 +2,6 @@ mod login;
 use crate::shared::Shared;
 use std::{io, sync::Arc, time::Duration};
 
-#[cfg(target_os = "linux")]
-mod linux;
-#[cfg(target_os = "linux")]
-mod linux_desktop;
-#[cfg(target_os = "linux")]
-mod linux_frame;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
@@ -15,8 +9,6 @@ pub(crate) mod macos_ffi;
 #[cfg(windows)]
 mod windows;
 
-#[cfg(target_os = "linux")]
-use linux as platform;
 #[cfg(target_os = "macos")]
 use macos as platform;
 #[cfg(windows)]

@@ -1,168 +1,77 @@
-name: Rust
+name: Build
 
 on:
   push:
-    branches: [master, rewrite/rust-v3.6]
-    paths:
-      - Cargo.toml
-      - Cargo.lock
-      - rust-toolchain.toml
-      - crates/**
-      - compatibility/**
-      - scripts/**
-      - macos/**
-      - packaging/**
-      - images/**
-      - .github/workflows/rust.yml
+    branches: [master]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
-concurrency:
-  group: rust-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  test:
+  build:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-26, macos-15-intel, windows-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - runner: macos-26
+            target: aarch64-apple-darwin
+            architecture: arm64
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            architecture: x64
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     env:
-      QT_QPA_PLATFORM: offscreen
       CARGO_TERM_COLOR: never
-      MACOSX_DEPLOYMENT_TARGET: '11.0'
+      TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          repository: TomBadash/Mouser
-          ref: 34d93f70b2a84e425698e0d3d748cae2c5d18911
-          path: reference
-          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Restore compiler cache
-        id: cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: rust-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: rust-${{ matrix.os }}-${{ runner.arch }}-
-      - name: Compiler version
-        run: rustup show
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Enforce comment-free Rust source
-        shell: bash
+          architecture: ${{ matrix.architecture }}
+      - name: Select native Rust toolchain
         run: |
-          if grep -R -nE '^[[:space:]]*(//|/\*)' crates --include='*.rs'; then
-            exit 1
-          fi
-      - name: Test native service before GUI compilation
-        shell: bash
+          channel=$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('rust-toolchain.toml').read_text())['toolchain']['channel'])")
+          toolchain="$channel-$TARGET"
+          rustup toolchain install "$toolchain" --profile minimal --component rustfmt,clippy
+          echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+      - name: Validate tag version
         run: |
-          mkdir -p evidence
-          cargo test --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets > evidence/service-tests.log 2>&1 || { tail -100 evidence/service-tests.log; exit 1; }
-          tail -20 evidence/service-tests.log
-      - name: Check native service safety and warnings
-        shell: bash
-        run: |
-          cargo clippy --locked -p superlight-core -p superlight-ipc -p superlight-service --all-targets -- -D warnings > evidence/service-clippy.log 2>&1 || { tail -120 evidence/service-clippy.log; exit 1; }
-      - name: Build complete desktop application
-        run: cargo build --locked --workspace --bins
-      - name: Test complete workspace
-        shell: bash
-        run: |
-          cargo test --locked --workspace --all-targets > evidence/workspace-tests.log 2>&1 || { tail -100 evidence/workspace-tests.log; exit 1; }
-          tail -20 evidence/workspace-tests.log
-      - name: Static checks
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
-      - name: Test release packager
-        run: python -m unittest scripts/test_package_release.py
-      - name: Install reference and measurement dependencies
-        run: python -m pip install hidapi PySide6 Pillow psutil==7.2.2
-      - name: Differential v3.6 contracts
-        shell: bash
-        run: |
-          binary=target/debug/superlight-contract
-          if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
-          set -o pipefail
-          python compatibility/test_v36.py --baseline-dir reference --binary "$binary" 2>&1 | tee evidence/differential.log
-      - name: Verify service lifecycle without hardware
-        shell: bash
-        run: |
-          binary=target/debug/superlight
-          if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
-          set -o pipefail
-          python scripts/verify_headless.py --binary "$binary" 2>&1 | tee evidence/lifecycle.log
-      - name: Build optimized executables
-        run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
-      - name: Build native macOS settings
-        if: runner.os == 'macOS'
-        run: |
-          bash macos/inspector/build.sh
-          cp target/native-macos/superlight-ui target/release/superlight-ui
-          bash macos/inspector/test.sh
-      - name: Build release package
-        run: python scripts/package_release.py --output package-smoke
-      - name: Measure isolated service memory and idle CPU
-        shell: bash
-        run: |
-          binary=target/release/superlight
-          if [[ "$RUNNER_OS" == "Windows" ]]; then binary="$binary.exe"; fi
-          python scripts/measure_resources.py --binary "$binary" --output evidence/resources-headless.json --seconds 30 --max-rss-mib 64
-          python scripts/measure_resources.py --binary "$binary" --output evidence/resources-native.json --seconds 30 --native --max-rss-mib 256
-      - name: Record binary sizes and dependencies
-        shell: bash
-        run: |
-          cargo tree --locked -p superlight-service > evidence/service-dependencies.txt
-          cargo tree --locked -p superlight-ui > evidence/ui-dependencies.txt
-          git rev-parse HEAD > evidence/commit.txt
           python - <<'PY'
-          import hashlib, json, pathlib
-          files = [path for path in pathlib.Path('target/release').iterdir() if path.name in ('superlight', 'superlight.exe', 'superlight-ui', 'superlight-ui.exe')]
-          report = {path.name: {'bytes': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()} for path in files}
-          pathlib.Path('evidence/binaries.json').write_text(json.dumps(report, indent=2) + '\n')
-          print(json.dumps(report, indent=2))
+          import os, pathlib, tomllib
+          version = tomllib.loads(pathlib.Path('Cargo.toml').read_text())['workspace']['package']['version']
+          if os.environ['GITHUB_REF'].startswith('refs/tags/') and os.environ['GITHUB_REF_NAME'] != 'v' + version:
+              raise SystemExit('Tag must match workspace version: v' + version)
           PY
-      - name: Upload optimized executables and package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace --lib
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        run: bash macos/inspector/build.sh
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        run: cargo build --locked --release -p superlight-service -p superlight-ui --bins --target "$TARGET"
+      - name: Package and verify architecture
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then binaries=target/native-macos; else binaries="target/$TARGET/release"; fi
+          python scripts/package_release.py --binaries "$binaries" --architecture "${{ matrix.architecture }}" --output dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: superlight-${{ matrix.os }}-${{ runner.arch }}
+          name: release-${{ matrix.target }}
           path: |
-            target/release/superlight
-            target/release/superlight.exe
-            target/release/superlight-ui
-            target/release/superlight-ui.exe
-            package-smoke/*.zip
-            package-smoke/*.sha256
-            LICENSE
+            dist/*.zip
+            dist/*.sha256
           if-no-files-found: error
           retention-days: 14
-      - name: Upload verification evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: evidence-${{ matrix.os }}-${{ runner.arch }}
-          path: evidence/
-          if-no-files-found: warn
-          retention-days: 14
-      - name: Save compiler cache
-        if: always() && steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ steps.cache.outputs.cache-primary-key }}

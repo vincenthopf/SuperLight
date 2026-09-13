@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn default_profiles_compile_without_hardware() {
-        for platform in [Platform::MacOs, Platform::Windows, Platform::Linux] {
+        for platform in [Platform::MacOs, Platform::Windows] {
             let policy = Policy::compile(&config::defaults(), "default", platform, false).unwrap();
             assert_ne!(policy.action(2), Action::None);
             assert_eq!(policy.action(0), Action::None);

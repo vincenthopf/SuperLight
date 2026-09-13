@@ -14,7 +14,6 @@ out="${1:-$root/target/native-macos}"
 target_dir="${CARGO_TARGET_DIR:-$root/target}"
 case "$(uname -m)" in
   arm64) rust_target=aarch64-apple-darwin; swift_target=arm64-apple-macosx14.0 ;;
-  x86_64) rust_target=x86_64-apple-darwin; swift_target=x86_64-apple-macosx14.0 ;;
   *) printf 'Unsupported architecture\n' >&2; exit 1 ;;
 esac
 mkdir -p "$out"

@@ -250,10 +250,8 @@ fn probe<T: Transport>(
         .into(),
         backend: if cfg!(target_os = "macos") {
             candidate.backend()
-        } else if cfg!(windows) {
-            "Windows native HID"
         } else {
-            "Linux hidraw"
+            "Windows native HID"
         }
         .into(),
         dpi_min: spec.map_or(200, |spec| spec.dpi_min),
