@@ -1,0 +1,429 @@
+[
+  {
+    "id": "master",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45108,
+    "name": "MX Master 3S",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        195,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        196,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        253,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      8705,
+      8465,
+      4100
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": true,
+      "mode_shift": true,
+      "dpi_switch": true,
+      "dpi": true,
+      "smart_shift": true
+    }
+  },
+  {
+    "id": "anywhere",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45093,
+    "name": "MX Anywhere 3",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        82,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        196,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      8705,
+      8464,
+      4096
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": true,
+      "dpi_switch": false,
+      "dpi": true,
+      "smart_shift": true
+    }
+  },
+  {
+    "id": "vertical",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45088,
+    "name": "MX Vertical",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        253,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      8705
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": true,
+      "dpi": true,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "m650",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45098,
+    "name": "Signature M650",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        82,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        83,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        86,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      8705,
+      4100
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": true,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "m590",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 50475,
+    "name": "M590",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        82,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        83,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ],
+      [
+        0,
+        86,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      4096
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "m720",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45077,
+    "name": "M720",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        208,
+        0,
+        1,
+        113,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        215,
+        0,
+        1,
+        32,
+        0,
+        0,
+        0,
+        3
+      ]
+    ],
+    "features": [
+      6916,
+      4096
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": true,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "generic-trackball",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 61441,
+    "name": "Unknown Logitech trackball",
+    "kind": 5,
+    "controls": [
+      [
+        0,
+        196,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "features": [
+      6916,
+      4100
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "unknown-mouse",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 61442,
+    "name": "Unknown Logitech mouse",
+    "kind": 3,
+    "controls": [
+      [
+        0,
+        195,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        196,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        253,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    "features": [
+      6916
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "empty-master",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45108,
+    "name": "MX Master 3S",
+    "kind": 3,
+    "controls": [],
+    "features": [
+      6916
+    ],
+    "expected": {
+      "supported": true,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "keyboard-with-mouse-name",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 45108,
+    "name": "MX Master 3S",
+    "kind": 0,
+    "controls": [],
+    "features": [
+      6916
+    ],
+    "expected": {
+      "supported": false,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  },
+  {
+    "id": "hidpp-without-reprog",
+    "provenance": "synthetic protocol scenario, not a hardware capture",
+    "pid": 49291,
+    "name": "G502 HERO",
+    "kind": 3,
+    "controls": [],
+    "features": [
+      8705
+    ],
+    "expected": {
+      "supported": false,
+      "gesture": false,
+      "mode_shift": false,
+      "dpi_switch": false,
+      "dpi": false,
+      "smart_shift": false
+    }
+  }
+]
