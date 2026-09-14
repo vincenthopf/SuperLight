@@ -80,25 +80,57 @@ struct InspectorView: View {
         .alert("SuperLight", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
     }
     var controlEditor: some View {
-        VStack(spacing: 0) {
-            Form {
-                Section { profilePicker }
-                Section("Selected control") {
-                    if model.supportedButton(model.selected) { ActionEditor(model: model) }
-                    else { Text("This control is unavailable on the connected device.").foregroundStyle(.secondary) }
+        GeometryReader { geometry in
+            VStack(spacing: 12) {
+                Form {
+                    Section { profilePicker }
+                    Section("Selected control") {
+                        if model.supportedButton(model.selected) {
+                            ActionEditor(model: model)
+                        } else {
+                            Text("This control is unavailable on the connected device.").foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                Section("Currently active") {
-                    LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
-                    LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
-                }
-            }.formStyle(.grouped).frame(maxHeight: .infinity).disabled(model.saving)
-            VStack(alignment: .leading, spacing: 6) {
-                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : "info.circle").font(.caption.weight(.semibold)).foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
-                Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary)
-                Text(deviceDescription).font(.caption2).foregroundStyle(.secondary)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous)).padding(12)
+                .formStyle(.grouped)
+                .frame(maxHeight: .infinity)
+                .disabled(model.saving)
+                statusCard
+                    .frame(height: max(210, geometry.size.height / 3))
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+            }
         }
     }
+
+    @ViewBuilder private var statusCard: some View {
+        if #available(macOS 26.0, *) {
+            statusContent.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+        } else {
+            statusContent.background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+
+    private var statusContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : "info.circle")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
+                LabeledContent("Connection", value: model.device["transport"] as? String ?? "Not connected")
+                LabeledContent("Battery", value: (model.device["battery"] as? Int).map { "\($0)%" } ?? "Unavailable")
+                LabeledContent("Sensitivity", value: (model.device["dpi"] as? Int).map { "\($0) DPI" } ?? "Unavailable")
+                LabeledContent("Active profile", value: model.snapshot["active_profile"] as? String ?? "—")
+                LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
+            }
+            .font(.caption)
+            .monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private struct SidebarStatus: View {
         @Bindable var model: ServiceModel
         var body: some View {
@@ -167,12 +199,6 @@ struct InspectorView: View {
             }
         }
             .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: model.saving)
-    }
-    var deviceDescription: String {
-        var parts = [model.device["transport"] as? String ?? model.status]
-        if let battery = model.device["battery"] as? Int { parts.append("Battery \(battery)%") }
-        if let dpi = model.device["dpi"] as? Int { parts.append("\(dpi) DPI") }
-        return parts.joined(separator: " · ")
     }
     var profilePicker: some View {
         ProfilePicker(model: model)
