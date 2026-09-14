@@ -29,14 +29,15 @@ struct MouseDiagram: View {
                                 Circle().strokeBorder(.white.opacity(0.9), lineWidth: active ? 2 : 1).frame(width: active ? 30 : 24, height: active ? 30 : 24)
                                 Text("\(point.0 + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                             }.frame(width: 44, height: 44).contentShape(Circle())
-                                .overlay(alignment: .leading) {
-                                    Text(model.data.profiles[model.profile].actions[point.0])
-                                        .font(.caption2.weight(.medium))
+                                .overlay(alignment: point.0 == 2 || point.0 == 3 ? .bottomLeading : .leading) {
+                                    Text(displayAction(point.0))
+                                        .font(.system(size: 11, weight: .medium))
                                         .lineLimit(1)
                                         .fixedSize()
-                                        .padding(.horizontal, 7).padding(.vertical, 4)
+                                        .padding(.horizontal, 8).padding(.vertical, 5)
                                         .background(.regularMaterial, in: Capsule())
-                                        .offset(x: 28)
+                                        .overlay(Capsule().stroke(.primary.opacity(0.12), lineWidth: 0.5))
+                                        .offset(x: 25, y: point.0 == 2 ? -22 : point.0 == 3 ? 22 : 0)
                                 }
                                 .scaleEffect(!reduceMotion && hovered == point.0 ? 1.08 : 1)
                                 .opacity(hovered == point.0 ? 1 : 0.92)
@@ -54,6 +55,12 @@ struct MouseDiagram: View {
             }
         }
     }
+    func displayAction(_ index: Int) -> String {
+        let action = model.data.profiles[model.profile].actions[index]
+        return action.replacingOccurrences(of: "custom:", with: "")
+            .replacingOccurrences(of: "Ratchet / free spin", with: "Wheel mode")
+    }
+
 }
 
 struct ActionEditor: View {
