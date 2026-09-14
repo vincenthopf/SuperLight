@@ -42,7 +42,7 @@ struct InspectorView: View {
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .background(.regularMaterial)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
+            .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
             .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
