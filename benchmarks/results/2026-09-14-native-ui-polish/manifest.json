@@ -1,0 +1,13 @@
+{
+  "status": "partial; one pair completed, planned repetitions incomplete",
+  "baseline_source": "3e3bbe5",
+  "candidate_source": "173f275",
+  "workload": "GUI idle, Buttons page, same installed hardware service and configuration, 1120x790 window; 15s warmup, 30s visible, 15s hidden; foreground and lock state checked at each sample",
+  "service_performance_measured": false,
+  "config_unchanged": true,
+  "interruption": "Next trial rejected when another app became foreground. Rejected samples excluded.",
+  "binary_sha256": {
+    "baseline": "71dca234b25b465fb3e274279d606ec2b9b50c7fc520a587746fbc8d79e4bf90",
+    "candidate": "82d127ede1d53de922d1671c2aec3bb850d2e0a22f0aaf4b0f8d6dd8bd70e62d"
+  }
+}

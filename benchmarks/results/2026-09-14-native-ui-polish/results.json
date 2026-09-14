@@ -1,0 +1,176 @@
+[
+  {
+    "name": "baseline",
+    "visible": {
+      "seconds": 30.001231166068465,
+      "samples": 31,
+      "stable_process_set": true,
+      "footprint_bytes": {
+        "median": 64586640,
+        "min": 64570256,
+        "max": 64979856,
+        "first": 64603024,
+        "last": 64979856
+      },
+      "rss_bytes": {
+        "median": 134709248,
+        "min": 134692864,
+        "max": 135118848,
+        "first": 134725632,
+        "last": 135118848
+      },
+      "threads": {
+        "median": 5,
+        "min": 4,
+        "max": 5,
+        "first": 5,
+        "last": 5
+      },
+      "deltas": {
+        "user_ns": 12751000,
+        "system_ns": 6080334,
+        "idle_wakeups": 1,
+        "interrupt_wakeups": 78,
+        "context_switches": 425,
+        "read_bytes": 0,
+        "written_bytes": 0,
+        "pageins": 0,
+        "instructions": 57086703,
+        "cycles": 60820221
+      },
+      "cpu_percent_one_core": 0.06276853738355354,
+      "idle_wakeups_per_second": 0.03333196542717236,
+      "interrupt_wakeups_per_second": 2.599893303319444,
+      "context_switches_per_second": 14.166085306548254
+    },
+    "hidden": {
+      "seconds": 14.999653624836355,
+      "samples": 16,
+      "stable_process_set": true,
+      "footprint_bytes": {
+        "median": 70108048.0,
+        "min": 70058896,
+        "max": 70108048,
+        "first": 70108048,
+        "last": 70058896
+      },
+      "rss_bytes": {
+        "median": 136134656.0,
+        "min": 136052736,
+        "max": 136151040,
+        "first": 136151040,
+        "last": 136052736
+      },
+      "threads": {
+        "median": 5.0,
+        "min": 4,
+        "max": 5,
+        "first": 5,
+        "last": 4
+      },
+      "deltas": {
+        "user_ns": 262625,
+        "system_ns": 343666,
+        "idle_wakeups": 0,
+        "interrupt_wakeups": 13,
+        "context_switches": 32,
+        "read_bytes": 0,
+        "written_bytes": 0,
+        "pageins": 0,
+        "instructions": 1277146,
+        "cycles": 1976698
+      },
+      "cpu_percent_one_core": 0.004042033337330578,
+      "idle_wakeups_per_second": 0.0,
+      "interrupt_wakeups_per_second": 0.866686679916039,
+      "context_switches_per_second": 2.1333825967164035
+    }
+  },
+  {
+    "name": "candidate",
+    "visible": {
+      "seconds": 29.999861042015254,
+      "samples": 31,
+      "stable_process_set": true,
+      "footprint_bytes": {
+        "median": 65307536,
+        "min": 65274768,
+        "max": 65356688,
+        "first": 65356688,
+        "last": 65291152
+      },
+      "rss_bytes": {
+        "median": 129613824,
+        "min": 129581056,
+        "max": 129662976,
+        "first": 129662976,
+        "last": 129597440
+      },
+      "threads": {
+        "median": 6,
+        "min": 5,
+        "max": 7,
+        "first": 7,
+        "last": 5
+      },
+      "deltas": {
+        "user_ns": 39508083,
+        "system_ns": 15165958,
+        "idle_wakeups": 1,
+        "interrupt_wakeups": 136,
+        "context_switches": 1312,
+        "read_bytes": 0,
+        "written_bytes": 0,
+        "pageins": 0,
+        "instructions": 150563774,
+        "cycles": 179580015
+      },
+      "cpu_percent_one_core": 0.18224764749219402,
+      "idle_wakeups_per_second": 0.03333348773180932,
+      "interrupt_wakeups_per_second": 4.533354331526068,
+      "context_switches_per_second": 43.73353590413384
+    },
+    "hidden": {
+      "seconds": 15.000342041952536,
+      "samples": 16,
+      "stable_process_set": true,
+      "footprint_bytes": {
+        "median": 70173584.0,
+        "min": 70173584,
+        "max": 70189968,
+        "first": 70189968,
+        "last": 70173584
+      },
+      "rss_bytes": {
+        "median": 130351104.0,
+        "min": 130334720,
+        "max": 130400256,
+        "first": 130400256,
+        "last": 130334720
+      },
+      "threads": {
+        "median": 5.0,
+        "min": 5,
+        "max": 6,
+        "first": 6,
+        "last": 5
+      },
+      "deltas": {
+        "user_ns": 347125,
+        "system_ns": 312625,
+        "idle_wakeups": 0,
+        "interrupt_wakeups": 11,
+        "context_switches": 34,
+        "read_bytes": 0,
+        "written_bytes": 0,
+        "pageins": 0,
+        "instructions": 1445290,
+        "cycles": 2057005
+      },
+      "cpu_percent_one_core": 0.004398233041318856,
+      "idle_wakeups_per_second": 0.0,
+      "interrupt_wakeups_per_second": 0.7333166116636213,
+      "context_switches_per_second": 2.2666149815057386
+    }
+  }
+]
