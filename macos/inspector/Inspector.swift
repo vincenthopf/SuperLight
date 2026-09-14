@@ -6,7 +6,6 @@ struct InspectorView: View {
     let images: [String: NSImage]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var discard = false
-    @State private var showInspector = true
     var mouseImage: NSImage? {
         let layout = model.device["layout_key"] as? String ?? ""
         if layout.contains("master") { return images["mouse"] }
@@ -32,7 +31,7 @@ struct InspectorView: View {
                 List(selection: $model.page) {
                     Section("Mouse") {
                         ForEach(Page.allCases, id: \.self) { page in
-                            Label(page.rawValue, systemImage: page.icon).tag(page)
+                            Label { Text(page.rawValue) } icon: { Image(systemName: page.icon).foregroundStyle(page.color) }.tag(page).listRowSeparator(.hidden)
                         }
                     }
                 }
@@ -44,6 +43,7 @@ struct InspectorView: View {
             .frame(maxHeight: .infinity, alignment: .top)
             .background(.regularMaterial)
             .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 280)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
                 .navigationTitle(model.page == .buttons ? model.deviceName : model.page.rawValue)
@@ -55,33 +55,37 @@ struct InspectorView: View {
                         Button(model.snapshot["paused"] as? Bool == true ? "Resume" : "Pause", systemImage: model.snapshot["paused"] as? Bool == true ? "play" : "pause") {
                             model.command("set_paused", value: model.snapshot["paused"] as? Bool != true)
                         }.disabled(!model.connected || model.busy)
-                        if model.page == .buttons {
-                            Button("Toggle Inspector", systemImage: "sidebar.right") { showInspector.toggle() }
-                        }
                     }
                 }
-                .inspector(isPresented: Binding(get: { showInspector && model.page == .buttons && !model.data.profiles.isEmpty }, set: { if model.page == .buttons { showInspector = $0 } })) {
-                    Form {
-                        Section { profilePicker }
-                        Section("Selected control") {
-                            if !model.data.profiles.isEmpty && model.supportedButton(model.selected) { ActionEditor(model: model) }
-                            else { Text("This control is unavailable on the connected device.").foregroundStyle(.secondary) }
-                        }
-                        Section("Currently active") {
-                            LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
-                            LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
-                        }
-                    }.formStyle(.grouped).inspectorColumnWidth(min: 290, ideal: 320, max: 400).disabled(model.saving)
+                .inspector(isPresented: .constant(model.page == .buttons && !model.data.profiles.isEmpty)) {
+                    controlEditor.inspectorColumnWidth(min: 290, ideal: 320, max: 400)
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }
         }
         .navigationSplitViewStyle(.balanced)
+        .buttonStyle(.bordered)
         .preferredColorScheme(model.scheme)
         .alert("Discard unsaved changes?", isPresented: $discard) {
             Button("Keep editing", role: .cancel) {}
             Button("Reload", role: .destructive) { model.revert() }
         } message: { Text("Load the latest configuration reported by the service.") }
         .alert("SuperLight", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
+    }
+    var controlEditor: some View {
+        Form {
+            Section { profilePicker }
+            Section("Selected control") {
+                if !model.data.profiles.isEmpty && model.supportedButton(model.selected) {
+                    ActionEditor(model: model)
+                } else {
+                    Text("This control is unavailable on the connected device.").foregroundStyle(.secondary)
+                }
+            }
+            Section("Currently active") {
+                LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
+                LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
+            }
+        }.formStyle(.grouped).disabled(model.saving)
     }
     private struct SidebarStatus: View {
         @Bindable var model: ServiceModel
@@ -95,7 +99,6 @@ struct InspectorView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .overlay(alignment: .top) { Divider() }
         }
     }
 
@@ -122,24 +125,25 @@ struct InspectorView: View {
                 case .buttons:
                     VStack(spacing: 0) {
                         if let mouseImage {
-                            MouseDiagram(model: model, mouseImage: mouseImage).frame(height: 260).padding(.horizontal, 12)
+                            MouseDiagram(model: model, mouseImage: mouseImage).frame(minHeight: 400, idealHeight: 440, maxHeight: 500).padding(.horizontal, 12)
                         } else {
                             ContentUnavailableView(model.device.isEmpty ? "No mouse detected" : "Mouse controls", systemImage: "computermouse", description: Text("A diagram appears for recognized models. Your assignments are kept while disconnected.")).frame(height: 220)
                         }
                         Text(deviceDescription).font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
-                        ButtonList(model: model)
                     }
                 case .scroll: ScrollSettings(model: model)
                 case .profiles: ProfileSettings(model: model)
                 case .settings: GeneralSettings(model: model)
+                case .about: AboutPage()
                 }
             }.disabled(model.saving)
                 .animation(.timingCurve(0.25, 1, 0.5, 1, duration: reduceMotion ? 0.1 : 0.18), value: model.status)
         }
     }
     var saveBar: some View {
+        Group {
+            if model.dirty || model.conflicted || model.saving {
         VStack(spacing: 8) {
-            Divider()
             if model.conflicted { Text("The service configuration changed. Reload before saving.").font(.caption).foregroundStyle(.orange) }
             HStack(spacing: 10) {
                 if model.saving { ProgressView().controlSize(.small) }
@@ -149,6 +153,8 @@ struct InspectorView: View {
                 Button("Save changes") { model.save() }.keyboardShortcut("s", modifiers: .command).disabled(!model.canSave).buttonStyle(.borderedProminent)
             }.padding(.horizontal).padding(.bottom, 12)
         }.background(.bar)
+            }
+        }
             .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: model.saving)
     }
     var deviceDescription: String {
@@ -158,9 +164,7 @@ struct InspectorView: View {
         return parts.joined(separator: " · ")
     }
     var profilePicker: some View {
-        Picker("Editing profile", selection: $model.profile) {
-            ForEach(Array(model.data.profiles.enumerated()), id: \.element.id) { index, profile in Text(profile.name).tag(index) }
-        }
+        ProfilePicker(model: model)
     }
 }
 

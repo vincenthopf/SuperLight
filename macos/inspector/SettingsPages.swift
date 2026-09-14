@@ -36,9 +36,7 @@ struct ProfileSettings: View {
     var body: some View {
         Form {
             Section("Profiles") {
-                Picker("Editing profile", selection: $model.profile) {
-                    ForEach(Array(model.data.profiles.enumerated()), id: \.element.id) { index, profile in Text(profile.name).tag(index) }
-                }
+                ProfilePicker(model: model)
                 if !model.data.profiles.isEmpty {
                     TextField("Profile name", text: $model.data.profiles[model.profile].name).disabled(model.data.profiles[model.profile].id == "default")
                     Text("Application identifiers, one per line").font(.callout)
@@ -79,5 +77,20 @@ struct ProfileSettings: View {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { model.deleteProfile() }
         } message: { Text("Its button assignments will be removed when you save. You can revert before saving.") }
+    }
+}
+
+struct AboutPage: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "computermouse.fill").font(.system(size: 56)).foregroundStyle(.tint)
+            Text("SuperLight").font(.largeTitle.weight(.semibold))
+            Text("Native Logitech mouse controls").foregroundStyle(.secondary)
+            if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                Text("Version \(version)").font(.caption).foregroundStyle(.tertiary)
+            }
+            Link("View on GitHub", destination: URL(string: "https://github.com/vincenthopf/SuperLight")!)
+            Text("Configure buttons, scrolling, gestures, and profiles from a native macOS interface.").multilineTextAlignment(.center).frame(maxWidth: 360)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity).padding(40)
     }
 }

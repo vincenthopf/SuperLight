@@ -29,6 +29,15 @@ struct MouseDiagram: View {
                                 Circle().strokeBorder(.white.opacity(0.9), lineWidth: active ? 2 : 1).frame(width: active ? 30 : 24, height: active ? 30 : 24)
                                 Text("\(point.0 + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
                             }.frame(width: 44, height: 44).contentShape(Circle())
+                                .overlay(alignment: .leading) {
+                                    Text(model.data.profiles[model.profile].actions[point.0])
+                                        .font(.caption2.weight(.medium))
+                                        .lineLimit(1)
+                                        .fixedSize()
+                                        .padding(.horizontal, 7).padding(.vertical, 4)
+                                        .background(.regularMaterial, in: Capsule())
+                                        .offset(x: 28)
+                                }
                                 .scaleEffect(!reduceMotion && hovered == point.0 ? 1.08 : 1)
                                 .opacity(hovered == point.0 ? 1 : 0.92)
                                 .animation(.timingCurve(0.25, 1, 0.5, 1, duration: 0.16), value: hovered)
@@ -44,26 +53,6 @@ struct MouseDiagram: View {
                 }
             }
         }
-    }
-}
-
-struct ButtonList: View {
-    @Bindable var model: ServiceModel
-    var body: some View {
-        List(selection: $model.selected) {
-            Section("Controls") {
-                ForEach(0..<controlNames.count, id: \.self) { index in
-                    if model.supportedButton(index) {
-                        HStack {
-                            Text("\(index + 1)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 24)
-                            Text(controlNames[index])
-                            Spacer()
-                            Text(model.data.profiles[model.profile].actions[index]).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }.tag(index).padding(.vertical, 4)
-                    }
-                }
-            }
-        }.listStyle(.inset)
     }
 }
 
@@ -86,7 +75,6 @@ struct ActionEditor: View {
             }
             Button("Search actions or set shortcut…") { pickerOpen = true }
             if model.selected == 1 || (7...10).contains(model.selected) {
-                Divider()
                 Text("Hold and move").font(.subheadline.weight(.medium))
                 HStack {
                     ForEach(7..<11) { index in
@@ -166,7 +154,6 @@ struct ActionChooser: View {
             if !validation.isEmpty {
                 Label(validation, systemImage: "exclamationmark.circle.fill").font(.callout).foregroundStyle(.red)
             }
-            Divider()
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -218,9 +205,20 @@ struct SettingSlider: View {
             LabeledContent(title) {
                 Text("\(Int(value))\(unit.isEmpty ? "" : " " + unit)").monospacedDigit().foregroundStyle(.secondary)
             }
-            Slider(value: $value, in: range, step: step)
+            Slider(value: Binding(get: { value }, set: { value = min(range.upperBound, max(range.lowerBound, ($0 / step).rounded() * step)) }), in: range)
                 .accessibilityLabel(title)
                 .accessibilityValue("\(Int(value)) \(unit)")
         }
+    }
+}
+
+struct ProfilePicker: View {
+    @Bindable var model: ServiceModel
+    var body: some View {
+        Picker("Profile", selection: $model.profile) {
+            ForEach(Array(model.data.profiles.enumerated()), id: \.element.id) { index, profile in
+                Text(profile.name).tag(index)
+            }
+        }.pickerStyle(.menu)
     }
 }

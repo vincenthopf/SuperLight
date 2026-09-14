@@ -6,12 +6,20 @@ let controlNames = ["Middle click", "Thumb gesture", "Back", "Forward", "Scroll 
 let controlKeys = ["middle", "gesture", "xbutton1", "xbutton2", "hscroll_left", "hscroll_right", "mode_shift", "gesture_left", "gesture_right", "gesture_up", "gesture_down", "dpi_switch"]
 
 enum Page: String, CaseIterable {
-    case buttons = "Buttons", scroll = "Point & scroll", profiles = "Profiles", settings = "Settings"
+    case buttons = "Buttons", scroll = "Point & scroll", profiles = "Profiles", settings = "Settings", about = "About"
+    var color: Color { switch self {
+    case .buttons: .blue
+    case .scroll: .teal
+    case .profiles: .orange
+    case .settings: .gray
+    case .about: .blue
+    } }
     var icon: String { switch self {
     case .buttons: "computermouse"
     case .scroll: "arrow.up.arrow.down"
     case .profiles: "square.stack"
     case .settings: "slider.horizontal.3"
+    case .about: "info.circle"
     } }
 }
 
