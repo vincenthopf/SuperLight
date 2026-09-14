@@ -85,19 +85,21 @@ struct InspectorView: View {
                 Form {
                     Section { profilePicker }
                     Section("Selected control") {
-                        if !(model.device["layout_key"] as? String ?? "").contains("master") || model.supportedButton(11) {
-                            Picker("Control", selection: $model.selected) {
-                                ForEach(controlNames.indices, id: \.self) { index in
-                                    if model.supportedButton(index) {
-                                        Text(controlNames[index]).tag(index)
+                        VStack(alignment: .leading, spacing: 18) {
+                            if !(model.device["layout_key"] as? String ?? "").contains("master") || model.supportedButton(11) {
+                                Picker("Control", selection: $model.selected) {
+                                    ForEach(controlNames.indices, id: \.self) { index in
+                                        if model.supportedButton(index) {
+                                            Text(controlNames[index]).tag(index)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        if model.supportedButton(model.selected) {
-                            ActionEditor(model: model)
-                        } else {
-                            Text("This control is unavailable on the connected device.").foregroundStyle(.secondary)
+                            if model.supportedButton(model.selected) {
+                                ActionEditor(model: model)
+                            } else {
+                                Text("This control is unavailable on the connected device.").foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
