@@ -54,7 +54,7 @@ import SwiftUI
         guard model.dirty else { return true }
         let alert = NSAlert()
         alert.messageText = "Close with unsaved changes?"
-        alert.informativeText = "The Rust service has not received these changes."
+        alert.informativeText = "Your changes have not been saved."
         alert.addButton(withTitle: "Keep editing")
         alert.addButton(withTitle: "Discard changes")
         return alert.runModal() == .alertSecondButtonReturn

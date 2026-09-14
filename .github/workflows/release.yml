@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           for package in dist/release-*; do (cd "$package" && sha256sum --check *.sha256); done
           mapfile -t files < <(find dist -type f \( -name '*.zip' -o -name '*.sha256' \) -print | sort)
-          test "${#files[@]}" -eq 6
+          test "${#files[@]}" -eq 2
           flags=()
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease --latest=false); fi
           gh release create "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "${flags[@]}"

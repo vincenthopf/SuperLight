@@ -18,12 +18,6 @@ jobs:
           - runner: macos-26
             target: aarch64-apple-darwin
             architecture: arm64
-          - runner: windows-latest
-            target: x86_64-pc-windows-msvc
-            architecture: x64
-          - runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
-            architecture: arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     defaults:

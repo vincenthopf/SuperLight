@@ -6,12 +6,20 @@ let controlNames = ["Middle click", "Thumb gesture", "Back", "Forward", "Scroll 
 let controlKeys = ["middle", "gesture", "xbutton1", "xbutton2", "hscroll_left", "hscroll_right", "mode_shift", "gesture_left", "gesture_right", "gesture_up", "gesture_down", "dpi_switch"]
 
 enum Page: String, CaseIterable {
-    case buttons = "Buttons", scroll = "Point & scroll", profiles = "Profiles", settings = "Settings"
+    case buttons = "Buttons", scroll = "Point & scroll", profiles = "Profiles", settings = "Settings", about = "About"
+    var color: Color { switch self {
+    case .buttons: .blue
+    case .scroll: .teal
+    case .profiles: .orange
+    case .settings: .gray
+    case .about: .blue
+    } }
     var icon: String { switch self {
     case .buttons: "computermouse"
     case .scroll: "arrow.up.arrow.down"
     case .profiles: "square.stack"
     case .settings: "slider.horizontal.3"
+    case .about: "info.circle"
     } }
 }
 
@@ -105,9 +113,6 @@ enum NativeBridge {
         if snapshot["native_ready"] as? Bool != true { return "Input unavailable" }
         if snapshot["hardware_pending"] as? Bool == true { return "Applying mouse settings…" }
         return "Mouse ready"
-    }
-    var actionGroups: [(String, [String])] {
-        [("Actions", actions.map { $0[1] })]
     }
     func supports(_ capability: String) -> Bool { device[capability] as? Bool == true }
     func supportedButton(_ index: Int) -> Bool {
@@ -218,13 +223,14 @@ enum NativeBridge {
         profile = next.profiles.firstIndex(where: { $0.id == selectedID }) ?? 0
         conflicted = false
     }
-    func assign(_ value: String) {
-        guard !data.profiles.isEmpty else { return }
+    @discardableResult func assign(_ value: String) -> Bool {
+        guard !data.profiles.isEmpty else { return false }
         let id = identifier(value)
         do {
             _ = try NativeBridge.call(["local": "validate_action", "action": id])
             data.profiles[profile].actions[selected] = label(id)
-        } catch { self.error = error.localizedDescription }
+            return true
+        } catch { self.error = error.localizedDescription; return false }
     }
     func addProfile(name: String, application: String) -> Bool {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
