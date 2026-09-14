@@ -22,7 +22,7 @@ struct InspectorView: View {
                         .foregroundStyle(Color.accentColor)
                         .frame(width: 30, height: 30)
                         .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    Text("SuperLight").font(.headline)
+                    Text("SuperLight").font(.headline).lineLimit(1)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 16)
@@ -31,7 +31,15 @@ struct InspectorView: View {
                 List(selection: $model.page) {
                     Section("Mouse") {
                         ForEach(Page.allCases, id: \.self) { page in
-                            Label { Text(page.rawValue) } icon: { Image(systemName: page.icon).foregroundStyle(page.color) }.tag(page).listRowSeparator(.hidden)
+                            Label {
+                                Text(page.rawValue).lineLimit(1)
+                            } icon: {
+                                if model.page == page {
+                                    Image(systemName: page.icon)
+                                } else {
+                                    Image(systemName: page.icon).foregroundStyle(page.color)
+                                }
+                            }.tag(page).listRowSeparator(.hidden)
                         }
                     }
                 }
@@ -40,7 +48,7 @@ struct InspectorView: View {
                 Spacer(minLength: 0)
                 SidebarStatus(model: model)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(minWidth: 230, maxHeight: .infinity, alignment: .top)
             .background(.regularMaterial)
             .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 300)
             .toolbar(removing: .sidebarToggle)
