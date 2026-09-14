@@ -2,65 +2,104 @@ import SwiftUI
 import AppKit
 
 struct MouseDiagram: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovered: Int?
     @Bindable var model: ServiceModel
     var showHotspots = true
     let mouseImage: NSImage
-    let points: [(Int, CGFloat, CGFloat)] = [(0, 0.33, 0.45), (1, 0.70, 0.63), (2, 0.65, 0.40), (3, 0.60, 0.48), (4, 0.59, 0.345), (6, 0.43, 0.25)]
+
+    private struct Control: Identifiable {
+        let id: Int
+        let x: CGFloat
+        let y: CGFloat
+        let column: CGFloat
+        let above: Bool
+        let title: String
+    }
+
+    private let controls = [
+        Control(id: 0, x: 0.34, y: 0.45, column: 0, above: true, title: "Middle click"),
+        Control(id: 6, x: 0.43, y: 0.25, column: 1, above: true, title: "Wheel mode"),
+        Control(id: 4, x: 0.59, y: 0.345, column: 2, above: true, title: "Thumb wheel"),
+        Control(id: 3, x: 0.60, y: 0.48, column: 0, above: false, title: "Forward"),
+        Control(id: 2, x: 0.65, y: 0.40, column: 1, above: false, title: "Back"),
+        Control(id: 1, x: 0.70, y: 0.63, column: 2, above: false, title: "Thumb gesture")
+    ]
 
     var body: some View {
         GeometryReader { geometry in
             let aspect = mouseImage.size.width / mouseImage.size.height
-            let width = min(geometry.size.width, geometry.size.height * aspect)
+            let width = min(geometry.size.width, (geometry.size.height - 136) * aspect)
             let height = width / aspect
             let left = (geometry.size.width - width) / 2
             let top = (geometry.size.height - height) / 2
             ZStack(alignment: .topLeading) {
                 Image(nsImage: mouseImage).resizable().interpolation(.high)
-                    .frame(width: width, height: height).position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                    .frame(width: width, height: height)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                     .accessibilityLabel("Mouse control diagram")
                 if showHotspots && (model.device["layout_key"] as? String ?? "").contains("master") {
-                    ForEach(points, id: \.0) { point in
-                        let active = model.selected == point.0 || (point.0 == 4 && model.selected == 5)
-                        Button { model.selected = point.0 } label: {
-                            ZStack {
-                                Circle().fill(active ? Color.accentColor : Color.black.opacity(0.75)).frame(width: active ? 30 : 24, height: active ? 30 : 24)
-                                Circle().strokeBorder(.white.opacity(0.9), lineWidth: active ? 2 : 1).frame(width: active ? 30 : 24, height: active ? 30 : 24)
-                                Text("\(point.0 + 1)").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
-                            }.frame(width: 44, height: 44).contentShape(Circle())
-                                .overlay(alignment: point.0 == 2 || point.0 == 3 ? .bottomLeading : .leading) {
-                                    Text(displayAction(point.0))
-                                        .font(.system(size: 11, weight: .medium))
-                                        .lineLimit(1)
-                                        .fixedSize()
-                                        .padding(.horizontal, 8).padding(.vertical, 5)
-                                        .background(.regularMaterial, in: Capsule())
-                                        .overlay(Capsule().stroke(.primary.opacity(0.12), lineWidth: 0.5))
-                                        .offset(x: 25, y: point.0 == 2 ? -22 : point.0 == 3 ? 22 : 0)
-                                }
-                                .scaleEffect(!reduceMotion && hovered == point.0 ? 1.08 : 1)
-                                .opacity(hovered == point.0 ? 1 : 0.92)
-                                .animation(.timingCurve(0.25, 1, 0.5, 1, duration: 0.16), value: hovered)
+                    ForEach(controls.filter { model.supportedButton($0.id) }) { control in
+                        let active = model.selected == control.id || (control.id == 4 && model.selected == 5) || (control.id == 1 && (7...10).contains(model.selected))
+                        let highlighted = active || hovered == control.id
+                        let anchor = CGPoint(x: left + control.x * width, y: top + control.y * height)
+                        let label = CGPoint(x: geometry.size.width * (control.column + 0.5) / 3, y: control.above ? 32 : geometry.size.height - 32)
+                        Path { path in
+                            path.move(to: anchor)
+                            path.addLine(to: CGPoint(x: label.x, y: control.above ? top - 12 : top + height + 12))
+                            path.addLine(to: CGPoint(x: label.x, y: label.y + (control.above ? 29 : -29)))
+                        }
+                        .stroke(highlighted ? Color.accentColor : Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: highlighted ? 1.5 : 1, lineCap: .round, lineJoin: .round))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+
+                        Button { model.selected = control.id } label: {
+                            Circle().fill(highlighted ? Color.accentColor : Color(nsColor: .windowBackgroundColor))
+                                .frame(width: 10, height: 10)
+                                .overlay(Circle().strokeBorder(highlighted ? Color.white : Color.secondary, lineWidth: 1.5))
+                                .frame(width: 32, height: 32).contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .onHover { inside in hovered = inside ? point.0 : nil }
-                        .disabled(!model.supportedButton(point.0))
-                        .accessibilityLabel("Select \(controlNames[point.0])")
+                        .onHover { hovered = $0 ? control.id : nil }
+                        .accessibilityLabel("Select \(control.title)")
+                        .accessibilityValue(actionLabel(control.id))
                         .accessibilityAddTraits(active ? .isSelected : [])
-                        .help("\(controlNames[point.0]) · \(model.data.profiles[model.profile].actions[point.0])")
-                        .position(x: left + point.1 * width, y: top + point.2 * height)
+                        .position(anchor)
+
+                        Button { model.selected = control.id } label: {
+                            VStack(spacing: 3) {
+                                Text(control.title).font(.callout.weight(.medium))
+                                    .foregroundStyle(highlighted ? Color.accentColor : .primary)
+                                Text(actionLabel(control.id)).font(.caption).foregroundStyle(.secondary)
+                                    .lineLimit(2).multilineTextAlignment(.center)
+                            }
+                            .frame(width: max(80, geometry.size.width / 3 - 16), height: 54)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovered = $0 ? control.id : nil }
+                        .help(control.title + ": " + actionLabel(control.id))
+                        .accessibilityAddTraits(active ? .isSelected : [])
+                        .position(label)
                     }
                 }
             }
         }
     }
-    func displayAction(_ index: Int) -> String {
-        let action = model.data.profiles[model.profile].actions[index]
-        return action.replacingOccurrences(of: "custom:", with: "")
-            .replacingOccurrences(of: "Ratchet / free spin", with: "Wheel mode")
-    }
 
+    private func actionLabel(_ index: Int) -> String {
+        let actions = model.data.profiles[model.profile].actions
+        if index == 4 {
+            return "← " + formattedAction(actions[4]) + " · → " + formattedAction(actions[5])
+        }
+        return formattedAction(actions[index])
+    }
+}
+
+func formattedAction(_ action: String) -> String {
+    guard action.hasPrefix("custom:") else { return action }
+    let keys = action.dropFirst("custom:".count).split(separator: "+")
+    let modifiers = ["cmd": "⌘", "ctrl": "⌃", "alt": "⌥", "shift": "⇧"]
+    return keys.map { modifiers[String($0)] ?? $0.uppercased() }.joined()
 }
 
 struct ActionEditor: View {
@@ -76,9 +115,15 @@ struct ActionEditor: View {
                     Text("Button assignment").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if model.selected == 4 || model.selected == 5 {
+                Picker("Thumb wheel direction", selection: $model.selected) {
+                    Text("Scroll left").tag(4)
+                    Text("Scroll right").tag(5)
+                }.pickerStyle(.segmented)
+            }
             Picker("Action", selection: Binding(get: { model.action }, set: { model.assign($0) })) {
-                ForEach(model.actions, id: \.self) { action in Text(action[1]).tag(action[1]) }
-                if !model.actions.contains(where: { $0[1] == model.action }) { Text(model.action).tag(model.action) }
+                ForEach(model.actions, id: \.self) { action in Text(formattedAction(action[1])).tag(action[1]) }
+                if !model.actions.contains(where: { $0[1] == model.action }) { Text(formattedAction(model.action)).tag(model.action) }
             }
             Button("Search actions or set shortcut…") { pickerOpen = true }
             if model.selected == 1 || (7...10).contains(model.selected) {
