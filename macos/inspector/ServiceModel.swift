@@ -7,13 +7,6 @@ let controlKeys = ["middle", "gesture", "xbutton1", "xbutton2", "hscroll_left", 
 
 enum Page: String, CaseIterable {
     case buttons = "Buttons", scroll = "Point & scroll", profiles = "Profiles", settings = "Settings", about = "About"
-    var color: Color { switch self {
-    case .buttons: .blue
-    case .scroll: .teal
-    case .profiles: .orange
-    case .settings: .gray
-    case .about: .blue
-    } }
     var icon: String { switch self {
     case .buttons: "computermouse"
     case .scroll: "arrow.up.arrow.down"
