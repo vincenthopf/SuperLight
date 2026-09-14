@@ -1948,7 +1948,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "superlight-core"
-version = "4.0.0-alpha.1"
+version = "4.0.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1956,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "superlight-ipc"
-version = "4.0.0-alpha.1"
+version = "4.0.0-alpha.2"
 dependencies = [
  "getrandom",
  "serde",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "superlight-macos-bridge"
-version = "4.0.0-alpha.1"
+version = "4.0.0-alpha.2"
 dependencies = [
  "serde_json",
  "superlight-core",
@@ -1977,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "superlight-service"
-version = "4.0.0-alpha.1"
+version = "4.0.0-alpha.2"
 dependencies = [
  "arc-swap",
  "crossbeam-channel",
@@ -1994,7 +1994,7 @@ dependencies = [
 
 [[package]]
 name = "superlight-ui"
-version = "4.0.0-alpha.1"
+version = "4.0.0-alpha.2"
 dependencies = [
  "eframe",
  "image",

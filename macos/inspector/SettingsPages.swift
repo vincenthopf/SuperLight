@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ScrollSettings: View {
     @Bindable var model: ServiceModel
@@ -83,7 +84,7 @@ struct ProfileSettings: View {
 struct AboutPage: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "computermouse.fill").font(.system(size: 56)).foregroundStyle(.tint)
+            Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 96, height: 96).accessibilityHidden(true)
             Text("SuperLight").font(.largeTitle.weight(.semibold))
             Text("Native Logitech mouse controls").foregroundStyle(.secondary)
             if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
