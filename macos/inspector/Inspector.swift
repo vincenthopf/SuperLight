@@ -80,20 +80,24 @@ struct InspectorView: View {
         .alert("SuperLight", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
     }
     var controlEditor: some View {
-        Form {
-            Section { profilePicker }
-            Section("Selected control") {
-                if !model.data.profiles.isEmpty && model.supportedButton(model.selected) {
-                    ActionEditor(model: model)
-                } else {
-                    Text("This control is unavailable on the connected device.").foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            Form {
+                Section { profilePicker }
+                Section("Selected control") {
+                    if model.supportedButton(model.selected) { ActionEditor(model: model) }
+                    else { Text("This control is unavailable on the connected device.").foregroundStyle(.secondary) }
                 }
-            }
-            Section("Currently active") {
-                LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
-                LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
-            }
-        }.formStyle(.grouped).disabled(model.saving)
+                Section("Currently active") {
+                    LabeledContent("Profile", value: model.snapshot["active_profile"] as? String ?? "default")
+                    LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
+                }
+            }.formStyle(.grouped).frame(maxHeight: .infinity).disabled(model.saving)
+            VStack(alignment: .leading, spacing: 6) {
+                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : "info.circle").font(.caption.weight(.semibold)).foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
+                Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary)
+                Text(deviceDescription).font(.caption2).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous)).padding(12)
+        }
     }
     private struct SidebarStatus: View {
         @Bindable var model: ServiceModel
@@ -137,7 +141,6 @@ struct InspectorView: View {
                         } else {
                             ContentUnavailableView(model.device.isEmpty ? "No mouse detected" : "Mouse controls", systemImage: "computermouse", description: Text("A diagram appears for recognized models. Your assignments are kept while disconnected.")).frame(height: 220)
                         }
-                        Text(deviceDescription).font(.caption).foregroundStyle(.secondary).padding(.bottom, 12)
                     }
                 case .scroll: ScrollSettings(model: model)
                 case .profiles: ProfileSettings(model: model)
