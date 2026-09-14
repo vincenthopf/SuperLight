@@ -17,11 +17,9 @@ struct InspectorView: View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 10) {
-                    Image(systemName: "computermouse.fill")
-                        .font(.title3)
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: 30, height: 30)
-                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    Image(nsImage: NSApplication.shared.applicationIconImage)
+                        .resizable().frame(width: 36, height: 36)
+                        .accessibilityHidden(true)
                     Text("SuperLight").font(.headline).lineLimit(1)
                     Spacer(minLength: 0)
                 }
@@ -37,7 +35,7 @@ struct InspectorView: View {
                                 if model.page == page {
                                     Image(systemName: page.icon)
                                 } else {
-                                    Image(systemName: page.icon).foregroundStyle(page.color)
+                                    Image(systemName: page.icon).foregroundStyle(Color.accentColor)
                                 }
                             }.tag(page).listRowSeparator(.hidden)
                         }
@@ -127,11 +125,11 @@ struct InspectorView: View {
                 Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : "info.circle")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
-                LabeledContent("Connection", value: model.device["transport"] as? String ?? "Not connected")
-                LabeledContent("Battery", value: (model.device["battery"] as? Int).map { "\($0)%" } ?? "Unavailable")
-                LabeledContent("Sensitivity", value: (model.device["dpi"] as? Int).map { "\($0) DPI" } ?? "Unavailable")
-                LabeledContent("Active profile", value: model.snapshot["active_profile"] as? String ?? "—")
-                LabeledContent("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
+                StatusRow("Connection", value: model.device["transport"] as? String ?? "Not connected")
+                StatusRow("Battery", value: (model.device["battery"] as? Int).map { "\($0)%" } ?? "Unavailable")
+                StatusRow("Sensitivity", value: (model.device["dpi"] as? Int).map { "\($0) DPI" } ?? "Unavailable")
+                StatusRow("Active profile", value: model.snapshot["active_profile"] as? String ?? "—")
+                StatusRow("Application", value: (model.snapshot["foreground"] as? [String: Any])?["name"] as? String ?? "—")
             }
             .font(.caption)
             .monospacedDigit()
@@ -139,6 +137,24 @@ struct InspectorView: View {
             .padding(16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private struct StatusRow: View {
+        let title: String
+        let value: String
+
+        init(_ title: String, value: String) {
+            self.title = title
+            self.value = value
+        }
+
+        var body: some View {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Text(value).lineLimit(1).help(value)
+            }
+        }
     }
 
     @ViewBuilder var detail: some View {
