@@ -46,7 +46,6 @@ struct InspectorView: View {
                 .listStyle(.sidebar)
                 .scrollContentBackground(.hidden)
                 Spacer(minLength: 0)
-                SidebarStatus(model: model)
             }
             .frame(minWidth: 230, maxHeight: .infinity, alignment: .top)
             .background(.regularMaterial)
@@ -140,21 +139,6 @@ struct InspectorView: View {
             .padding(16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private struct SidebarStatus: View {
-        @Bindable var model: ServiceModel
-        var body: some View {
-            VStack(alignment: .leading, spacing: 5) {
-                Label(model.status, systemImage: model.status == "Mouse ready" ? "checkmark.circle.fill" : model.status == "Input permissions required" ? "lock.shield" : "info.circle")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(model.status == "Mouse ready" ? .green : .primary)
-                Text(model.connectionSummary).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-        }
     }
 
     @ViewBuilder var detail: some View {
