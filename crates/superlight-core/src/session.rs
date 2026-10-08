@@ -50,14 +50,14 @@ pub struct Report {
     pub feature: u8,
     pub function: u8,
     pub software: u8,
-    pub parameters: [u8; 16],
+    pub parameters: [u8; hidpp::MAX_PARAMS],
     pub len: u8,
 }
 
 impl Report {
     pub fn from_message(message: hidpp::Message<'_>) -> Self {
-        let len = message.params.len().min(16);
-        let mut parameters = [0; 16];
+        let len = message.params.len().min(hidpp::MAX_PARAMS);
+        let mut parameters = [0; hidpp::MAX_PARAMS];
         parameters[..len].copy_from_slice(&message.params[..len]);
         Self {
             device: message.device,
@@ -180,7 +180,9 @@ impl<T: Transport> Session<T> {
                     return Err(ProtocolError::Device(code).into());
                 }
                 ResponseMatch::Unrelated => {
-                    if message.device == self.device_index && message.software == 0 {
+                    if message.device == self.device_index
+                        && message.software == hidpp::NOTIFICATION_SOFTWARE
+                    {
                         notify(Report::from_message(message));
                     }
                 }
@@ -202,7 +204,7 @@ impl<T: Transport> Session<T> {
         }
         if let Some(message) = hidpp::parse(&buffer[..len])
             && message.device == self.device_index
-            && message.software == 0
+            && message.software == hidpp::NOTIFICATION_SOFTWARE
         {
             notify(Report::from_message(message));
         }
@@ -217,7 +219,11 @@ impl<T: Transport> Session<T> {
         let [high, low] = id.to_be_bytes();
         match self.request(0, 0, &[high, low, 0], notify) {
             Ok(report) => Ok(report.params().first().copied().filter(|index| *index != 0)),
-            Err(Error::Protocol(ProtocolError::Device(6 | 7 | 9))) => Ok(None),
+            Err(Error::Protocol(ProtocolError::Device(
+                hidpp::ERROR_INVALID_FEATURE_INDEX
+                | hidpp::ERROR_INVALID_FUNCTION
+                | hidpp::ERROR_UNSUPPORTED,
+            ))) => Ok(None),
             Err(error) => Err(error),
         }
     }
@@ -320,7 +326,7 @@ impl<T: Transport> Session<T> {
             return Ok(self.diverts[0]);
         }
         for &cid in candidates.iter().take(hidpp::MAX_CONTROLS) {
-            for (flags, raw_xy) in [(0x33, true), (0x03, false)] {
+            for (flags, raw_xy) in [(hidpp::DIVERT_RAW_XY, true), (hidpp::DIVERT, false)] {
                 match self.set_reporting(cid, flags, notify) {
                     Ok(()) => {
                         self.diverts[0] = Some(Divert { cid, raw_xy });
@@ -344,7 +350,7 @@ impl<T: Transport> Session<T> {
         if self.diverts[slot].is_some() {
             return Ok(());
         }
-        self.set_reporting(cid, 0x03, notify)?;
+        self.set_reporting(cid, hidpp::DIVERT, notify)?;
         self.diverts[slot] = Some(Divert { cid, raw_xy: false });
         Ok(())
     }
@@ -357,7 +363,15 @@ impl<T: Transport> Session<T> {
         let Some(divert) = self.diverts.get(slot).copied().flatten() else {
             return Ok(());
         };
-        self.set_reporting(divert.cid, if divert.raw_xy { 0x22 } else { 0x02 }, notify)?;
+        self.set_reporting(
+            divert.cid,
+            if divert.raw_xy {
+                hidpp::UNDIVERT_RAW_XY
+            } else {
+                hidpp::UNDIVERT
+            },
+            notify,
+        )?;
         self.diverts[slot] = None;
         Ok(())
     }
@@ -368,7 +382,11 @@ impl<T: Transport> Session<T> {
         };
         let feature = self.features.reprog.ok_or(Error::Unsupported)?;
         let [high, low] = divert.cid.to_be_bytes();
-        let flags = if divert.raw_xy { 0x22 } else { 0x02 };
+        let flags = if divert.raw_xy {
+            hidpp::UNDIVERT_RAW_XY
+        } else {
+            hidpp::UNDIVERT
+        };
         let report = hidpp::encode(self.device_index, feature, 3, &[high, low, flags, 0, 0])?;
         self.transport()?.write_report(&report)?;
         self.diverts[slot] = None;

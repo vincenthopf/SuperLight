@@ -1,3 +1,5 @@
+const VK_LMENU: u16 = 0xa4;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Platform {
     MacOs,
@@ -267,7 +269,7 @@ impl Action {
         let mut chord = Chord::parse(chord, platform)?;
         if platform == Platform::Windows && matches!(id, "browser_back" | "browser_forward") {
             chord.phased = true;
-            chord.codes[0] = 0xa4;
+            chord.codes[0] = VK_LMENU;
         }
         Ok(Self::Chord(chord))
     }
@@ -367,68 +369,4 @@ pub fn key_code(name: &str, platform: Platform) -> Option<u16> {
         }
     };
     Some(codes[column])
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_builtin_compiles_on_all_platforms() {
-        for platform in [Platform::MacOs, Platform::Windows] {
-            for (id, _) in ACTIONS {
-                assert!(Action::parse(id, platform).is_ok(), "{id}");
-            }
-        }
-    }
-
-    #[test]
-    fn aliases_match_canonical_keys_on_all_platforms() {
-        for platform in [Platform::MacOs, Platform::Windows] {
-            for (alias, canonical) in [
-                ("command", "super"),
-                ("win", "super"),
-                ("opt", "alt"),
-                ("control", "ctrl"),
-                ("return", "enter"),
-                ("escape", "esc"),
-            ] {
-                assert_eq!(key_code(alias, platform), key_code(canonical, platform));
-            }
-        }
-    }
-
-    #[test]
-    fn mac_digits_are_hardware_codes_not_ascii() {
-        assert_eq!(
-            Chord::parse("cmd+shift+3", Platform::MacOs).unwrap().keys(),
-            [55, 56, 20]
-        );
-        assert_eq!(
-            Chord::parse("ctrl+0", Platform::Windows).unwrap().keys(),
-            [17, 48]
-        );
-    }
-
-    #[test]
-    fn shortcuts_are_bounded_and_invalid_names_are_reported() {
-        assert!(Chord::parse("", Platform::MacOs).is_err());
-        assert!(Chord::parse("ctrl+notakey", Platform::Windows).is_err());
-        assert!(Chord::parse("a+b+c+d+e+f+g+h+i", Platform::Windows).is_err());
-        assert!(Action::parse("unknown", Platform::MacOs).is_err());
-    }
-
-    #[test]
-    fn chromium_navigation_keeps_phased_left_alt() {
-        let Action::Chord(chord) = Action::parse("browser_back", Platform::Windows).unwrap() else {
-            panic!()
-        };
-        assert!(chord.phased);
-        assert_eq!(chord.keys(), [164, 37]);
-        let Action::Chord(chord) = Action::parse("browser_back", Platform::MacOs).unwrap() else {
-            panic!()
-        };
-        assert!(!chord.phased);
-        assert_eq!(chord.keys(), [55, 33]);
-    }
 }

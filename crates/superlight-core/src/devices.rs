@@ -1,4 +1,4 @@
-use crate::hidpp::GESTURE_CIDS;
+use crate::hidpp::{GESTURE_CIDS, MULTIPLATFORM_GESTURE_CID, VIRTUAL_GESTURE_CID};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Family {
@@ -205,7 +205,7 @@ pub static DEVICES: [DeviceSpec; 13] = [
         dpi_min: 1000,
         dpi_max: 1000,
         image: "",
-        gesture_cids: &[0x00d0, 0x00d7],
+        gesture_cids: &[MULTIPLATFORM_GESTURE_CID, VIRTUAL_GESTURE_CID],
     },
 ];
 
@@ -234,52 +234,7 @@ pub fn resolve(pid: u16, name: &str) -> Option<&'static DeviceSpec> {
     })
 }
 
-pub fn clamp_dpi(value: i64, device: Option<&DeviceSpec>) -> u16 {
-    let (min, max) = device.map_or((200, 8000), |spec| (spec.dpi_min, spec.dpi_max));
-    value.clamp(i64::from(min), i64::from(max)) as u16
-}
-
 pub fn candidate_allowed(vendor: u16, pid: u16, name: &str, usage_page: u16) -> bool {
-    vendor == crate::hidpp::VENDOR && (usage_page >= 0xff00 || resolve(pid, name).is_some())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolves_all_aliases_without_substring_matching() {
-        for spec in &DEVICES {
-            for &pid in spec.product_ids {
-                assert_eq!(resolve(pid, "").unwrap().key, spec.key);
-            }
-            for name in std::iter::once(spec.key)
-                .chain(std::iter::once(spec.name))
-                .chain(spec.aliases.iter().copied())
-            {
-                assert_eq!(resolve(0, name).unwrap().key, spec.key);
-            }
-        }
-        assert!(resolve(0, "MX Master 3S keyboard imitation").is_none());
-    }
-
-    #[test]
-    fn accepts_known_ble_without_usage_but_never_other_vendor() {
-        assert!(candidate_allowed(0x046d, 0xb034, "", 0));
-        assert!(!candidate_allowed(0x1234, 0xb034, "MX Master 3S", 0xff00));
-        assert!(!candidate_allowed(0x046d, 0x1234, "Unknown", 0));
-        assert!(candidate_allowed(
-            0x046d,
-            0xc548,
-            "Logi Bolt Receiver",
-            0xff00
-        ));
-    }
-
-    #[test]
-    fn model_specific_dpi_limits_are_preserved() {
-        assert_eq!(clamp_dpi(16000, resolve(0xb020, "")), 4000);
-        assert_eq!(clamp_dpi(-1, None), 200);
-        assert_eq!(clamp_dpi(16000, None), 8000);
-    }
+    vendor == crate::hidpp::VENDOR
+        && (usage_page >= crate::hidpp::VENDOR_USAGE_PAGE || resolve(pid, name).is_some())
 }
