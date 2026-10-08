@@ -8,7 +8,7 @@ Native Logitech mouse remapping for macOS Apple Silicon and Windows x64/ARM64.
 
 ## Build
 
-Rust is pinned by `rust-toolchain.toml`.
+Rust is pinned by `rust-toolchain.toml`. On Windows:
 
 ```sh
 cargo build --locked --release -p superlight-service -p superlight-ui --bins
