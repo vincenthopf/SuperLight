@@ -25,7 +25,7 @@ pub const DIRECTIONS: [&str; 4] = [
 
 pub fn defaults() -> Value {
     json!({
-        "version": 9,
+        "version": VERSION,
         "active_profile": "default",
         "profiles": {
             "default": {

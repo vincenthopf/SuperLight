@@ -92,7 +92,7 @@ pub struct Divert {
 }
 
 pub struct Session<T: Transport> {
-    transport: Option<T>,
+    transport: T,
     pub device_index: u8,
     pub features: Features,
     pub timeout: Duration,
@@ -103,7 +103,7 @@ pub struct Session<T: Transport> {
 impl<T: Transport> Session<T> {
     pub fn new(transport: T, device_index: u8) -> Self {
         Self {
-            transport: Some(transport),
+            transport,
             device_index,
             features: Features::default(),
             timeout: Duration::from_secs(2),
@@ -129,12 +129,6 @@ impl<T: Transport> Session<T> {
         &self.diverts
     }
 
-    fn transport(&mut self) -> Result<&mut T, Error> {
-        self.transport
-            .as_mut()
-            .ok_or_else(|| Error::Transport("HID transport is closed".into()))
-    }
-
     pub fn request(
         &mut self,
         feature: u8,
@@ -154,7 +148,7 @@ impl<T: Transport> Session<T> {
         notify: &mut impl FnMut(Report),
     ) -> Result<Report, Error> {
         let report = hidpp::encode(self.device_index, feature, function, parameters)?;
-        self.transport()?.write_report(&report)?;
+        self.transport.write_report(&report)?;
         let started = Instant::now();
         let mut buffer = [0; 64];
         while let Some(remaining) = timeout.checked_sub(started.elapsed()) {
@@ -162,7 +156,7 @@ impl<T: Transport> Session<T> {
                 break;
             }
             let len = self
-                .transport()?
+                .transport
                 .read_wait(&mut buffer, remaining.min(Duration::from_millis(250)))?;
             if len > buffer.len() {
                 return Err(ProtocolError::Malformed.into());
@@ -198,7 +192,7 @@ impl<T: Transport> Session<T> {
         notify: &mut impl FnMut(Report),
     ) -> Result<bool, Error> {
         let mut buffer = [0; 64];
-        let len = self.transport()?.read_wait(&mut buffer, timeout)?;
+        let len = self.transport.read_wait(&mut buffer, timeout)?;
         if len > buffer.len() {
             return Err(ProtocolError::Malformed.into());
         }
@@ -247,7 +241,7 @@ impl<T: Transport> Session<T> {
                 notify,
             ) {
                 Ok(response) => response,
-                Err(Error::Transport(error)) => return Err(Error::Transport(error)),
+                Err(error @ Error::Transport(_)) => return Err(error),
                 Err(_) => {
                     failures += 1;
                     if failures >= 3 {
@@ -332,7 +326,7 @@ impl<T: Transport> Session<T> {
                         self.diverts[0] = Some(Divert { cid, raw_xy });
                         return Ok(self.diverts[0]);
                     }
-                    Err(Error::Transport(error)) => return Err(Error::Transport(error)),
+                    Err(error @ Error::Transport(_)) => return Err(error),
                     Err(_) if self.needs_reconnect() => return Err(Error::Timeout),
                     Err(_) => {}
                 }
@@ -388,7 +382,7 @@ impl<T: Transport> Session<T> {
             hidpp::UNDIVERT
         };
         let report = hidpp::encode(self.device_index, feature, 3, &[high, low, flags, 0, 0])?;
-        self.transport()?.write_report(&report)?;
+        self.transport.write_report(&report)?;
         self.diverts[slot] = None;
         Ok(())
     }
