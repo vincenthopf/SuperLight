@@ -118,11 +118,7 @@ impl<O: Output> Dispatcher<O> {
                 error = Some(failure);
             }
         }
-        if let Some(error) = error {
-            Err(error)
-        } else {
-            Ok(())
-        }
+        error.map_or(Ok(()), Err)
     }
 
     pub fn release_all(&mut self) -> io::Result<()> {
@@ -153,11 +149,6 @@ fn execute(dispatcher: &mut Dispatcher<NativeOutput>, shared: &Shared, event: Di
         }
         _ => {}
     }
-}
-
-fn begin_gesture(gesture: &mut Gesture, policy: Policy, at: u64) {
-    gesture.options = policy.gestures;
-    gesture.press(at);
 }
 
 pub fn run(shared: Arc<Shared>, receiver: Receiver<QueuedInput>) {
@@ -215,7 +206,8 @@ pub fn run(shared: Arc<Shared>, receiver: Receiver<QueuedInput>) {
             Input::Dispatch(event) => execute(&mut dispatcher, &shared, event),
             Input::GesturePress { at } => {
                 gesture_policy = **shared.policy.load();
-                begin_gesture(&mut gesture, gesture_policy, at);
+                gesture.options = gesture_policy.gestures;
+                gesture.press(at);
                 shared
                     .gesture_motion
                     .store(gesture_policy.gestures.enabled, Ordering::Release);

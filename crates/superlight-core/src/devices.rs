@@ -225,12 +225,14 @@ pub fn resolve(pid: u16, name: &str) -> Option<&'static DeviceSpec> {
         return Some(device);
     }
     let normalized = normalize_name(name);
+    if normalized.is_empty() {
+        return None;
+    }
     DEVICES.iter().find(|device| {
-        !normalized.is_empty()
-            && std::iter::once(device.name)
-                .chain(std::iter::once(device.key))
-                .chain(device.aliases.iter().copied())
-                .any(|candidate| normalize_name(candidate) == normalized)
+        [device.name, device.key]
+            .into_iter()
+            .chain(device.aliases.iter().copied())
+            .any(|candidate| normalize_name(candidate) == normalized)
     })
 }
 

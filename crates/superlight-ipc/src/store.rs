@@ -7,6 +7,8 @@ use std::{
 };
 use superlight_core::{CONFIG_LIMIT, actions::Platform, config, policy};
 
+const UNSYNCED_NOTICE: &str = "Settings were saved atomically, but the filesystem could not synchronize the containing directory.";
+
 pub struct Store {
     pub paths: Paths,
     pub value: Value,
@@ -67,13 +69,9 @@ impl Store {
     }
 
     fn persist_current(&mut self) -> io::Result<()> {
-        let bytes = serde_json::to_vec_pretty(&self.value).map_err(invalid)?;
-        if bytes.len() > CONFIG_LIMIT {
-            return Err(invalid("Configuration exceeds 1 MiB"));
-        }
-        let durable = atomic_write(&self.paths.config, &bytes)?;
-        if !durable {
-            self.notice = Some("Settings were saved atomically, but the filesystem could not synchronize the containing directory.".into());
+        let bytes = serialize(&self.value)?;
+        if !atomic_write(&self.paths.config, &bytes)? {
+            self.notice = Some(UNSYNCED_NOTICE.into());
         }
         Ok(())
     }
@@ -87,10 +85,7 @@ impl Store {
         }
         let value = config::migrate(value).map_err(invalid)?;
         policy::validate_actions(&value, Platform::current()).map_err(invalid)?;
-        let bytes = serde_json::to_vec_pretty(&value).map_err(invalid)?;
-        if bytes.len() > CONFIG_LIMIT {
-            return Err(invalid("Configuration exceeds 1 MiB"));
-        }
+        let bytes = serialize(&value)?;
         let next_revision = self
             .revision
             .checked_add(1)
@@ -99,10 +94,18 @@ impl Store {
         self.value = value;
         self.revision = next_revision;
         if !durable {
-            self.notice = Some("Settings were saved atomically, but the filesystem could not synchronize the containing directory.".into());
+            self.notice = Some(UNSYNCED_NOTICE.into());
         }
         Ok(())
     }
+}
+
+fn serialize(value: &Value) -> io::Result<Vec<u8>> {
+    let bytes = serde_json::to_vec_pretty(value).map_err(invalid)?;
+    if bytes.len() > CONFIG_LIMIT {
+        return Err(invalid("Configuration exceeds 1 MiB"));
+    }
+    Ok(bytes)
 }
 
 pub fn read_limited(path: &Path, limit: usize) -> io::Result<Vec<u8>> {

@@ -13,9 +13,6 @@ use superlight_ipc::{
 };
 
 fn dispatch(bytes: &[u8], paths: &Paths) -> Result<Value, String> {
-    if bytes.len() > superlight_core::CONFIG_LIMIT + 4096 {
-        return Err("Request exceeds the size limit".into());
-    }
     let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     match value["local"].as_str() {
         Some("catalog") => {
