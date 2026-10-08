@@ -85,3 +85,4 @@ jobs:
           echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
+      - run: cargo test --locked --workspace --all-targets
