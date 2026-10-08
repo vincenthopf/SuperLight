@@ -14,7 +14,6 @@ pub const HIDPP10_ERROR: u8 = 0x8f;
 pub const ERROR_INVALID_FEATURE_INDEX: u8 = 6;
 pub const ERROR_INVALID_FUNCTION: u8 = 7;
 pub const ERROR_UNSUPPORTED: u8 = 9;
-pub const ROOT: u16 = 0x0000;
 pub const REPROG: u16 = 0x1b04;
 pub const DPI: u16 = 0x2201;
 pub const SMART_SHIFT: u16 = 0x2110;

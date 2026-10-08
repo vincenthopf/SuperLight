@@ -71,13 +71,6 @@ impl Gesture {
         }
     }
 
-    pub fn held(&self) -> bool {
-        self.held
-    }
-    pub fn source(&self) -> Option<Source> {
-        self.source
-    }
-
     fn reset_segment(&mut self, now_ms: u64) {
         self.tracking = true;
         self.source = None;

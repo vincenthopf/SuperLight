@@ -1983,7 +1983,6 @@ dependencies = [
  "ctrlc",
  "hidapi",
  "libc",
- "serde",
  "serde_json",
  "superlight-core",
  "superlight-ipc",
