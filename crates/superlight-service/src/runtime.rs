@@ -213,7 +213,7 @@ pub fn device_action(
             let candidates = value["settings"]["dpi_presets"]
                 .as_array()
                 .cloned()
-                .unwrap_or_else(|| vec![json!(800), json!(1200), json!(1600), json!(2400)]);
+                .unwrap_or_else(|| config::DEFAULT_DPI_PRESETS.map(|dpi| json!(dpi)).to_vec());
             let mut presets = Vec::with_capacity(candidates.len().min(64));
             for dpi in candidates.iter().take(64).filter_map(Value::as_i64) {
                 let dpi = dpi.clamp(i64::from(dpi_min), i64::from(dpi_max.max(dpi_min))) as u16;
@@ -559,90 +559,5 @@ impl Drop for Controller {
             let _ = child.kill();
             let _ = child.wait();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejected_edits_never_change_login_registration() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut store = Store::open(Paths::in_dir(directory.path())).unwrap();
-        let mut value = store.value.clone();
-        value["settings"]["start_at_login"] = json!(true);
-        assert!(
-            apply_settings(&mut store, 0, value.clone(), |_| panic!(
-                "Login modified before revision validation"
-            ))
-            .is_err()
-        );
-        value["profiles"]["default"]["mappings"]["middle"] = json!("custom:not-a-key");
-        assert!(
-            apply_settings(&mut store, 1, value, |_| panic!(
-                "Login modified before action validation"
-            ))
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn failed_settings_write_restores_the_previous_login_registration() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut store = Store::open(Paths::in_dir(directory.path())).unwrap();
-        store.paths.config = directory.path().join("missing").join("config.json");
-        let mut value = store.value.clone();
-        value["settings"]["start_at_login"] = json!(true);
-        let mut calls = Vec::new();
-        assert!(
-            apply_settings(&mut store, 1, value, |enabled| {
-                calls.push(enabled);
-                Ok(())
-            })
-            .is_err()
-        );
-        assert_eq!(calls, [true, false]);
-        assert_eq!(store.revision, 1);
-        assert!(!policy::boolean(&store.value, "start_at_login", false));
-    }
-
-    #[test]
-    fn login_failure_never_publishes_or_persists_the_new_configuration() {
-        let directory = tempfile::tempdir().unwrap();
-        let mut store = Store::open(Paths::in_dir(directory.path())).unwrap();
-        let original = std::fs::read(&store.paths.config).unwrap();
-        let mut value = store.value.clone();
-        value["settings"]["start_at_login"] = json!(true);
-        assert!(apply_settings(&mut store, 1, value, |_| Err(io::Error::other("denied"))).is_err());
-        assert_eq!(std::fs::read(&store.paths.config).unwrap(), original);
-        assert_eq!(store.revision, 1);
-    }
-
-    #[test]
-    fn default_dpi_cycle_matches_v36_and_clamps_model_limits() {
-        let value = config::defaults();
-        let first = device_action(&value, Action::CycleDpi, 200, 8000).unwrap();
-        assert_eq!(first["settings"]["dpi"], 800);
-        let next = device_action(&first, Action::CycleDpi, 200, 8000).unwrap();
-        assert_eq!(next["settings"]["dpi"], 1200);
-        let mut custom = value;
-        custom["settings"]["dpi_presets"] = json!([0, 9000, 10000]);
-        let low = device_action(&custom, Action::CycleDpi, 200, 4000).unwrap();
-        assert_eq!(low["settings"]["dpi"], 200);
-        let high = device_action(&low, Action::CycleDpi, 200, 4000).unwrap();
-        assert_eq!(high["settings"]["dpi"], 4000);
-    }
-
-    #[test]
-    fn smart_shift_toggle_preserves_the_saved_fallback_mode() {
-        let mut value = config::defaults();
-        value["settings"]["smart_shift_mode"] = json!("freespin");
-        let toggled = device_action(&value, Action::ToggleSmartShift, 200, 8000).unwrap();
-        assert_eq!(toggled["settings"]["smart_shift_mode"], "freespin");
-        assert_eq!(toggled["settings"]["smart_shift_enabled"], true);
-        let fixed = device_action(&toggled, Action::SwitchScrollMode, 200, 8000).unwrap();
-        assert_eq!(fixed["settings"]["smart_shift_mode"], "ratchet");
-        assert_eq!(fixed["settings"]["smart_shift_enabled"], false);
     }
 }

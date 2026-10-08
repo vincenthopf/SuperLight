@@ -7,7 +7,6 @@ pub mod gesture;
 pub mod hidpp;
 pub mod input;
 pub mod policy;
-pub mod queue;
 pub mod reports;
 pub mod session;
 

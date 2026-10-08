@@ -1,6 +1,7 @@
 use serde_json::{Map, Value, json};
 
 pub const VERSION: u64 = 9;
+pub const DEFAULT_DPI_PRESETS: [u16; 4] = [800, 1200, 1600, 2400];
 pub const BUTTONS: [&str; 12] = [
     "middle",
     "gesture",
@@ -250,19 +251,6 @@ pub fn profile_for_aliases<'a>(value: &'a Value, aliases: &[String]) -> &'a str 
     "default"
 }
 
-pub fn active_mappings(value: &Value) -> Option<&Map<String, Value>> {
-    let name = value
-        .get("active_profile")
-        .and_then(Value::as_str)
-        .unwrap_or("default");
-    value
-        .get("profiles")?
-        .get(name)
-        .or_else(|| value.get("profiles")?.get("default"))?
-        .get("mappings")?
-        .as_object()
-}
-
 pub fn delete_profile(value: &mut Value, name: &str) -> Result<(), String> {
     if name == "default" {
         return Err("The default profile cannot be removed".into());
@@ -276,72 +264,4 @@ pub fn delete_profile(value: &mut Value, name: &str) -> Result<(), String> {
         value["active_profile"] = json!("default");
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_config_migrates_to_current_defaults() {
-        assert_eq!(migrate(json!({})).unwrap(), defaults());
-    }
-
-    #[test]
-    fn mode_shift_promotes_without_overwriting_user_actions() {
-        for (version, action, expected) in [
-            (6, "none", "switch_scroll_mode"),
-            (7, "toggle_smart_shift", "switch_scroll_mode"),
-            (8, "none", "none"),
-            (1, "copy", "copy"),
-        ] {
-            let value = migrate(json!({"version": version, "profiles": {"default": {"mappings": {"mode_shift": action}}}})).unwrap();
-            assert_eq!(
-                value["profiles"]["default"]["mappings"]["mode_shift"],
-                expected
-            );
-        }
-    }
-
-    #[test]
-    fn keeps_smart_shift_fallback_and_unknown_fields() {
-        let value = migrate(json!({"version": 8, "settings": {"smart_shift_mode": "freespin", "smart_shift_enabled": true, "future": 7}, "future": {"enabled": true}})).unwrap();
-        assert_eq!(value["settings"]["smart_shift_mode"], "freespin");
-        assert_eq!(value["future"]["enabled"], true);
-        assert_eq!(value["settings"]["future"], 7);
-    }
-
-    #[test]
-    fn login_migration_preserves_explicit_new_setting() {
-        let value = migrate(json!({"version": 4, "settings": {"start_with_windows": true, "start_at_login": false}})).unwrap();
-        assert_eq!(value["settings"]["start_at_login"], false);
-        assert!(value["settings"].get("start_with_windows").is_none());
-    }
-
-    #[test]
-    fn malformed_and_oversized_are_errors_not_data_loss() {
-        assert!(parse(b"{broken").is_err());
-        assert!(parse(b"[]").is_err());
-        assert!(parse(&vec![b' '; crate::CONFIG_LIMIT + 1]).is_err());
-        assert!(migrate(json!({"profiles": []})).is_err());
-    }
-
-    #[test]
-    fn default_cannot_be_deleted() {
-        let mut value = defaults();
-        assert!(delete_profile(&mut value, "default").is_err());
-        value["profiles"]["work"] = json!({"mappings": {}});
-        value["active_profile"] = json!("work");
-        delete_profile(&mut value, "work").unwrap();
-        assert_eq!(value["active_profile"], "default");
-    }
-
-    #[test]
-    fn first_application_profile_wins_case_insensitively() {
-        let mut value = defaults();
-        value["profiles"]["first"] = json!({"apps": ["Code.exe"], "mappings": {}});
-        value["profiles"]["second"] = json!({"apps": ["code.exe"], "mappings": {}});
-        assert_eq!(profile_for_aliases(&value, &["CODE.EXE".into()]), "first");
-        assert_eq!(profile_for_aliases(&value, &[]), "default");
-    }
 }

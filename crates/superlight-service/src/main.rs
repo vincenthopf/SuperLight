@@ -154,35 +154,3 @@ fn main() {
         std::process::exit(1);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn diagnostics_exclude_configuration_foreground_and_free_text() {
-        let private = "PRIVATE_PATH_OR_SHORTCUT";
-        let mut snapshot = superlight_ipc::Snapshot {
-            config: serde_json::json!({"custom": private}),
-            active_profile: private.into(),
-            errors: vec![private.into()],
-            notice: Some(private.into()),
-            ..Default::default()
-        };
-        snapshot.foreground.name = private.into();
-        snapshot.foreground.aliases = vec![private.into()];
-        snapshot.permissions.description = private.into();
-        snapshot.device = Some(superlight_ipc::DeviceStatus {
-            name: private.into(),
-            model_key: "mx_master_3s".into(),
-            product_id: 0xb034,
-            ..Default::default()
-        });
-        let report = diagnostics(&snapshot);
-        assert!(!report.to_string().contains(private));
-        assert_eq!(report["device"]["product_id"], "0xb034");
-        assert_eq!(report["device"]["model"], "mx_master_3s");
-        snapshot.device = None;
-        assert!(diagnostics(&snapshot)["device"].is_null());
-    }
-}

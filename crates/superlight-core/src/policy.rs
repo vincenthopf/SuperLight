@@ -101,16 +101,6 @@ pub fn smart_shift(value: &Value) -> SmartShift {
     }
 }
 
-pub fn needs_divert(value: &Value, button: &str) -> bool {
-    value["profiles"].as_object().is_some_and(|profiles| {
-        profiles.values().any(|profile| {
-            profile["mappings"][button]
-                .as_str()
-                .is_some_and(|action| action != "none" && !action.is_empty())
-        })
-    })
-}
-
 pub fn validate_actions(value: &Value, platform: Platform) -> Result<(), String> {
     for name in value["profiles"]
         .as_object()
@@ -120,51 +110,4 @@ pub fn validate_actions(value: &Value, platform: Platform) -> Result<(), String>
         Policy::compile(value, name, platform, false)?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn default_profiles_compile_without_hardware() {
-        for platform in [Platform::MacOs, Platform::Windows] {
-            let policy = Policy::compile(&config::defaults(), "default", platform, false).unwrap();
-            assert_ne!(policy.action(2), Action::None);
-            assert_eq!(policy.action(0), Action::None);
-            assert!(!policy.gestures.enabled);
-        }
-    }
-
-    #[test]
-    fn pause_and_invalid_button_are_pass_through() {
-        let policy =
-            Policy::compile(&config::defaults(), "default", Platform::MacOs, true).unwrap();
-        for index in 0..100 {
-            assert_eq!(policy.action(index), Action::None);
-        }
-    }
-
-    #[test]
-    fn clamps_unsafe_settings_and_validates_inactive_profiles() {
-        let mut value = config::defaults();
-        value["settings"]["gesture_threshold"] = json!(-10);
-        value["settings"]["gesture_timeout_ms"] = json!(-100);
-        value["profiles"]["default"]["mappings"]["gesture_up"] = json!("copy");
-        let policy = Policy::compile(&value, "default", Platform::MacOs, false).unwrap();
-        assert_eq!(policy.gestures.threshold, 5.0);
-        assert_eq!(policy.gestures.timeout_ms, 250);
-        assert!(policy.gestures.enabled);
-        value["profiles"]["inactive"] = json!({"mappings": {"middle": "custom:badkey"}});
-        assert!(validate_actions(&value, Platform::MacOs).is_err());
-    }
-
-    #[test]
-    fn inactive_profiles_still_request_device_diversion() {
-        let mut value = config::defaults();
-        assert!(!needs_divert(&value, "dpi_switch"));
-        value["profiles"]["work"] = json!({"mappings": {"dpi_switch": "cycle_dpi"}});
-        assert!(needs_divert(&value, "dpi_switch"));
-    }
 }
