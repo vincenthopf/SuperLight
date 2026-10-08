@@ -62,7 +62,7 @@ Before marking a model/transport/platform verified for a release:
 4. Run 30 minutes of active use and record failures and memory growth. This is not a leak-free certification.
 5. Attach the results to the compatibility issue and update the matrix with the evidence reference. Repeat independently for Bluetooth, each receiver type and each OS tested.
 
-CI runs lint and release builds on macOS ARM64 and Windows x64. It does not exercise devices, so it does not replace physical device testing.
+CI runs lint and release builds on macOS ARM64, Windows x64 and Windows ARM64. It does not exercise devices, so it does not replace physical device testing.
 
 ## Protocol notes
 
