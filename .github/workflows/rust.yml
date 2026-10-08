@@ -2,7 +2,7 @@ name: Build
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
   workflow_call:
 
@@ -52,15 +52,9 @@ jobs:
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace --all-targets
       - name: Build macOS app
-        if: runner.os == 'macOS'
         run: bash macos/inspector/build.sh
-      - name: Build Windows app
-        if: runner.os == 'Windows'
-        run: cargo build --locked --release -p superlight-service -p superlight-ui --bins --target "$TARGET"
       - name: Package and verify architecture
-        run: |
-          if [[ "$RUNNER_OS" == "macOS" ]]; then binaries=target/native-macos; else binaries="target/$TARGET/release"; fi
-          python scripts/package_release.py --binaries "$binaries" --architecture "${{ matrix.architecture }}" --output dist
+        run: python scripts/package_release.py --binaries target/native-macos --architecture "${{ matrix.architecture }}" --output dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: release-${{ matrix.target }}
@@ -69,3 +63,25 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
           retention-days: 14
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: never
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Select native Rust toolchain
+        run: |
+          channel=$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('rust-toolchain.toml').read_text())['toolchain']['channel'])")
+          toolchain="$channel-$TARGET"
+          rustup toolchain install "$toolchain" --profile minimal --component clippy
+          echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
