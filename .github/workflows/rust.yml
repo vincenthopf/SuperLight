@@ -65,14 +65,22 @@ jobs:
           retention-days: 14
 
   windows:
-    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     defaults:
       run:
         shell: bash
     env:
       CARGO_TERM_COLOR: never
-      TARGET: x86_64-pc-windows-msvc
+      TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
