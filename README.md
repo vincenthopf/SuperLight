@@ -71,19 +71,22 @@ These facts are not obvious from the code. Most HID++ constants are named in `cr
 - HID++ writes are always 20-byte long reports (0x11) with software id 0x0A. Bluetooth devices reject short reports. More than 16 parameter bytes is an error and is never truncated.
 - Input reports may arrive with or without the 0x10/0x11 report ID. Device indices (0xff and 1 to 6) never collide with those IDs, so both forms parse the same. macOS IOHID passes both forms through.
 - Some firmware replies with function f+1. A reply with function f or f+1 completes request f. Software id 0 marks device notifications.
-- Errors arrive as feature 0xff (HID++ 2.0) or 0x8f (HID++ 1.0). An error completes a request only when device, feature and function all match. Errors 6, 7 and 9 from getFeature mean the feature is absent.
+- Errors arrive as feature 0xff (HID++ 2.0) or 0x8f (HID++ 1.0). An error completes a request only when device, feature, function and software id all match. Errors 6, 7 and 9 from getFeature mean the feature is absent.
 - Bluetooth devices use index 0xff only. Receivers are probed at 0xff and slots 1 to 6. Product IDs 0xb000 to 0xbfff are Bluetooth. Receiver product IDs (Unifying 0xc52b and 0xc532, Bolt 0xc548) are never catalogue mice, so a mouse behind a receiver resolves by name. A product ID match beats a name match.
-- Device kind 3 (mouse) and 5 (trackball) are accepted. Any other reported kind is rejected even when the name matches the catalogue.
+- Device kind 3 (mouse) and 5 (trackball) are accepted. Any other reported kind is rejected even when the name matches the catalogue. If the device reports no kind, only a catalogue model is accepted.
 - Discovery is read-only. Capabilities come from discovered divertable controls, not the model name. Writes need a confirmed mouse on the probed slot, an allow-listed feature, a confirmed control and a DPI value in range. Firmware update features are never reachable.
-- The gesture control is chosen in order 0x00c3, then 0x00d7, unless the model overrides it (M720 uses 0x00d0). Gesture divert tries raw XY (0x33) before plain divert (0x03).
-- Reprog event 0 lists the held diverted controls as a snapshot, so a release is detected by absence. Event 1 carries raw XY motion and is used only while the gesture control is held.
+- The gesture control is chosen in order 0x00c3, then 0x00d7, unless the model overrides it (M720: 0x00d0, then 0x00d7). Any other divertable virtual control with raw XY is tried after these. Gesture divert tries raw XY (0x33) before plain divert (0x03).
+- Reprog event 0 lists the held diverted controls as a snapshot, so a release is detected by absence. Snapshot slots 0, 1 and 2 map to button sources 1 (gesture), 6 (mode shift) and 7 (DPI switch). Event 1 carries raw XY motion and is used only while the gesture control is held.
 - SmartShift uses mode 1 for freespin and 2 for ratchet, threshold 1 to 50, and 255 for a fixed ratchet.
 - Input safety: a release always pairs with the action captured at its press, across pause and profile changes. Cancel or disconnect never produces a click or an orphan button-up. A failed press injection passes the original input through. A full input queue passes input to the OS. A failed mouse-up is retried. Held buttons are released after 20 s.
 - Device actions (SmartShift, scroll mode and DPI cycling) never run HID I/O on the input thread.
-- Gesture motion from the OS and from HID raw XY is never summed. A segment keeps its first source. macOS prefers HID.
+- Gesture motion from the OS and from HID raw XY is never summed. A segment keeps its first source, except that on macOS the first HID event restarts a native segment as HID.
 - Wheel actions count at most one step per event. The cooldown is 60 ms for volume and 350 ms for other actions.
-- Default DPI presets are 800, 1200, 1600 and 2400. The default DPI of 1000 is not a preset, so the first cycle goes to 800.
-- Config files are written atomically with mode 0600. The mode comes from `tempfile`, not an explicit chmod. Malformed config is never overwritten. A legacy Mouser config is imported read-only. Unknown fields are preserved and profile order follows the file.
+- Default DPI presets are 800, 1200, 1600 and 2400. The default DPI of 1000 is not a preset, so the first cycle goes to 800 after clamping to the model's DPI range.
+- Config files are written atomically. On Unix they get mode 0600. The mode comes from `tempfile`, not an explicit chmod. Malformed config is never overwritten. A legacy Mouser config is imported read-only. Unknown fields at any level survive migration and settings edits. Profile order follows the file because the workspace enables the serde_json `preserve_order` feature. The first matching profile wins, compared case-insensitively.
+- macOS shortcuts use hardware virtual key codes (kVK), not ASCII. For example cmd is 55, shift is 56 and digit 3 is 20. Windows virtual key codes for letters and digits equal ASCII.
+- On Windows, browser back and forward press left Alt (VK_LMENU 0xa4) and the arrow key one at a time, 10 ms apart. Chromium ignores Alt+Left and Alt+Right otherwise.
+- `Endpoint::wake` connects and drops the connection to unblock the service accept loop. `accept` fails on that empty connection and the loop keeps serving the next one.
 - Save conflicts are detected with the service instance and the revision. The revision restarts at 1 on every service launch.
 - `superlight_call` in the macOS bridge always returns a JSON object that the caller frees with `superlight_free`. `superlight_free(null)` does nothing.
 - `compatibility/mice.json` and `superlight_core::devices::DEVICES` must change together. No automated check enforces this.

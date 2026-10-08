@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "scope": "Recognition is not feature support. Features require a successful runtime probe. Synthetic fixtures are not physical tests.",
+  "scope": "Recognition is not feature support. Features require a successful runtime probe.",
   "models": [
     {
       "model": "mx_master_4",
@@ -182,10 +182,10 @@
     }
   ],
   "transports": {
-    "Bluetooth": "Local protocol fixtures only, unless a model has matching physical evidence.",
-    "Bolt": "Local protocol fixtures only, unless a model has matching physical evidence.",
-    "Unifying": "Local protocol fixtures only, unless a model has matching physical evidence.",
-    "USB": "Local protocol fixtures only, unless a model has matching physical evidence."
+    "Bluetooth": "Not physically tested, unless a model has matching physical evidence.",
+    "Bolt": "Not physically tested, unless a model has matching physical evidence.",
+    "Unifying": "Not physically tested, unless a model has matching physical evidence.",
+    "USB": "Not physically tested, unless a model has matching physical evidence."
   },
   "platforms": [
     "macOS arm64",
