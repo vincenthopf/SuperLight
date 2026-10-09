@@ -52,7 +52,10 @@ impl Candidate {
 }
 
 pub fn enumerate(api: &mut HidApi) -> Result<Vec<Candidate>, Error> {
-    let refresh_error = api.refresh_devices().err();
+    let refresh_error = api
+        .reset_devices()
+        .and_then(|()| api.add_devices(hidpp::VENDOR, 0))
+        .err();
     let mut candidates = Vec::new();
     if refresh_error.is_none() {
         for info in api.device_list() {
