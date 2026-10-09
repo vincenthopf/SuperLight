@@ -140,7 +140,7 @@ fn token_matches(left: &str, right: &str) -> bool {
 }
 
 fn configure(stream: &Stream) -> io::Result<()> {
-    stream.set_nonblocking(true)?;
+    stream.set_nonblocking(false)?;
     #[cfg(windows)]
     stream.set_nodelay(true)?;
     Ok(())
@@ -212,14 +212,16 @@ fn remaining(deadline: Instant) -> io::Result<Duration> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "Local request timed out"))
 }
 
-fn wait_for_progress(deadline: Instant) -> io::Result<()> {
-    std::thread::sleep(remaining(deadline)?.min(Duration::from_millis(1)));
-    Ok(())
+fn ignore_shut_down(result: io::Result<()>) -> io::Result<()> {
+    match result {
+        Err(error) if error.kind() != io::ErrorKind::InvalidInput => Err(error),
+        _ => Ok(()),
+    }
 }
 
 fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        remaining(deadline)?;
+        ignore_shut_down(stream.set_read_timeout(Some(remaining(deadline)?)))?;
         match stream.read(bytes) {
             Ok(0) => {
                 return Err(io::Error::new(
@@ -228,8 +230,13 @@ fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> i
                 ));
             }
             Ok(count) => bytes = &mut bytes[count..],
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted
+                        | io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                ) => {}
             Err(error) => return Err(error),
         }
     }
@@ -238,7 +245,7 @@ fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> i
 
 fn write_all(mut stream: &Stream, mut bytes: &[u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        remaining(deadline)?;
+        ignore_shut_down(stream.set_write_timeout(Some(remaining(deadline)?)))?;
         match stream.write(bytes) {
             Ok(0) => {
                 return Err(io::Error::new(
@@ -247,8 +254,13 @@ fn write_all(mut stream: &Stream, mut bytes: &[u8], deadline: Instant) -> io::Re
                 ));
             }
             Ok(count) => bytes = &bytes[count..],
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted
+                        | io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                ) => {}
             Err(error) => return Err(error),
         }
     }
