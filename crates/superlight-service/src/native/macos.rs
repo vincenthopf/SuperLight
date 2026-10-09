@@ -51,7 +51,7 @@ fn permitted_output() -> io::Result<()> {
             "Secure Input is active. Remapping is paused.",
         ));
     }
-    if !unsafe { CGPreflightPostEventAccess() || AXIsProcessTrusted() } {
+    if !unsafe { AXIsProcessTrusted() || CGPreflightPostEventAccess() } {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "Allow SuperLight in Privacy & Security > Accessibility",
@@ -715,7 +715,7 @@ impl Native {
             return;
         };
         let listen = unsafe { CGPreflightListenEventAccess() };
-        let inject = unsafe { CGPreflightPostEventAccess() || AXIsProcessTrusted() };
+        let inject = unsafe { AXIsProcessTrusted() || CGPreflightPostEventAccess() };
         if listen && inject && self.tap.is_none() && !shared.stopping() {
             unsafe {
                 let mask = [5, 6, 7, 22, 25, 26, 27]
