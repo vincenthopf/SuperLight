@@ -32,7 +32,7 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 
 ## Releases
 
-Push a version tag matching the workspace version, such as `v4.0.0-alpha.1`. GitHub Actions builds macOS Apple Silicon, Windows x64 and Windows ARM64 packages, includes SHA-256 checksums, and publishes a GitHub release. Tags containing a hyphen are prereleases.
+Push a version tag matching the workspace version, such as `v4.0.0-alpha.1`. GitHub Actions builds the macOS Apple Silicon package with a SHA-256 checksum and publishes a GitHub release. Windows is checked in CI but not packaged. Tags containing a hyphen are prereleases.
 
 macOS packages are ad-hoc signed. Distribution signing and notarization require Apple credentials.
 
