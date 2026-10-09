@@ -1,6 +1,6 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-use std::{io, path::PathBuf};
+use std::{io, path::Path};
 use superlight_ipc::{Paths, Request, Response, call, store::read_limited};
 use superlight_service::{Options, native};
 
@@ -80,7 +80,7 @@ fn execute() -> io::Result<()> {
         if args.len() != 2 || index != 0 {
             return Err(io::Error::other("Usage: superlight --apply FILE"));
         }
-        let bytes = read_limited(&PathBuf::from(&args[1]), superlight_core::CONFIG_LIMIT)?;
+        let bytes = read_limited(Path::new(&args[1]), superlight_core::CONFIG_LIMIT)?;
         let config = superlight_core::config::parse(&bytes).map_err(io::Error::other)?;
         let snapshot = request(Request::Get)?
             .snapshot

@@ -252,7 +252,7 @@ enum NativeBridge {
             var mappings = stored["mappings"] as? [String: Any] ?? [:]
             guard !profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, profile.name.count <= 100 else { throw ServiceFailure(message: "Profile names must contain 1–100 characters.") }
             let old = baseline.profiles.first(where: { $0.id == profile.id })
-            for (index, key) in controlKeys.enumerated() where old == nil || old!.actions[index] != profile.actions[index] {
+            for (index, key) in controlKeys.enumerated() where old?.actions[index] != profile.actions[index] {
                 mappings[key] = identifier(profile.actions[index])
             }
             stored["mappings"] = mappings

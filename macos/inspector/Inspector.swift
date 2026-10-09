@@ -80,7 +80,7 @@ struct InspectorView: View {
         GeometryReader { geometry in
             VStack(spacing: 12) {
                 Form {
-                    Section { profilePicker }
+                    Section { ProfilePicker(model: model) }
                     Section("Selected control") {
                         VStack(alignment: .leading, spacing: 18) {
                             if !(model.device["layout_key"] as? String ?? "").contains("master") || model.supportedButton(11) {
@@ -210,9 +210,6 @@ struct InspectorView: View {
             }
         }
             .animation(.easeOut(duration: reduceMotion ? 0.1 : 0.16), value: model.saving)
-    }
-    var profilePicker: some View {
-        ProfilePicker(model: model)
     }
 }
 
