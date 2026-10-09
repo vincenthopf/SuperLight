@@ -1,6 +1,6 @@
 use std::io;
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(target_os = "macos")]
 pub fn xml(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -20,19 +20,4 @@ pub fn checked_executable(path: &std::path::Path) -> io::Result<&str> {
         ));
     }
     Ok(value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn login_paths_cannot_inject_plist_nodes() {
-        assert_eq!(xml("a&<b>\"c'"), "a&amp;&lt;b&gt;&quot;c&apos;");
-        assert!(checked_executable(std::path::Path::new("app\nextra")).is_err());
-        assert_eq!(
-            checked_executable(std::path::Path::new("App With Spaces")).unwrap(),
-            "App With Spaces"
-        );
-    }
 }

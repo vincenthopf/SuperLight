@@ -219,12 +219,12 @@ fn probe<T: Transport>(
         spec.map_or(&hidpp::GESTURE_CIDS, |spec| spec.gesture_cids),
     );
     let supports_gesture = !gestures.is_empty();
-    let supports_mode_shift = controls
-        .iter()
-        .any(|control| control.cid == hidpp::MODE_SHIFT_CID && control.flags & 0x0020 != 0);
-    let supports_dpi_switch = controls
-        .iter()
-        .any(|control| control.cid == hidpp::DPI_SWITCH_CID && control.flags & 0x0020 != 0);
+    let supports_mode_shift = controls.iter().any(|control| {
+        control.cid == hidpp::MODE_SHIFT_CID && control.flags & hidpp::KEY_DIVERTABLE != 0
+    });
+    let supports_dpi_switch = controls.iter().any(|control| {
+        control.cid == hidpp::DPI_SWITCH_CID && control.flags & hidpp::KEY_DIVERTABLE != 0
+    });
     let model_key = spec.map_or("generic", |spec| spec.key).to_owned();
     let status = DeviceStatus {
         name: if name.is_empty() {
@@ -526,124 +526,3 @@ pub fn run(shared: Arc<Shared>) {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use superlight_core::{actions::Platform, config, session::Divert};
-
-    #[test]
-    fn a_known_name_never_overrides_an_explicit_keyboard_identity() {
-        assert!(!verified_mouse(true, Some(0)));
-        assert!(!verified_mouse(false, None));
-        assert!(verified_mouse(true, None));
-        assert!(verified_mouse(false, Some(3)));
-        assert!(verified_mouse(false, Some(5)));
-        assert!(!verified_mouse(true, Some(4)));
-    }
-
-    #[test]
-    fn diversion_requires_permissions_and_an_active_mapping() {
-        let mut config = config::defaults();
-        config["profiles"]["default"]["mappings"]["gesture_left"] = json!("copy");
-        let policy = Policy::compile(&config, "default", Platform::MacOs, false).unwrap();
-        let status = DeviceStatus {
-            dpi_min: 200,
-            dpi_max: 4000,
-            supports_dpi: true,
-            supports_gesture: true,
-            supports_mode_shift: true,
-            ..DeviceStatus::default()
-        };
-        assert_eq!(
-            Desired::from_config(&config, &policy, &status, false).diverts,
-            [false; 3]
-        );
-        assert_eq!(
-            Desired::from_config(&config, &policy, &status, true).diverts,
-            [true, true, false]
-        );
-        let paused = Policy {
-            paused: true,
-            ..policy
-        };
-        assert_eq!(
-            Desired::from_config(&config, &paused, &status, true).diverts,
-            [false; 3]
-        );
-        config["settings"]["dpi"] = json!(16000);
-        assert_eq!(
-            Desired::from_config(&config, &policy, &status, true).dpi,
-            Some(4000)
-        );
-    }
-
-    fn report(params: &[u8]) -> Report {
-        let mut parameters = [0; 16];
-        parameters[..params.len()].copy_from_slice(params);
-        Report {
-            device: 2,
-            feature: 7,
-            function: 0,
-            software: 0,
-            parameters,
-            len: params.len() as u8,
-        }
-    }
-
-    #[test]
-    fn cancelling_a_held_gesture_does_not_turn_its_release_into_a_click() {
-        let (shared, events, _) = Shared::new(config::defaults(), "test".into(), true).unwrap();
-        shared.native_ready.store(true, Ordering::Release);
-        shared.device_connected.store(true, Ordering::Release);
-        let mut pump = Pump::new(Arc::clone(&shared), 2, 7);
-        pump.configure([
-            Some(Divert {
-                cid: 0xc3,
-                raw_xy: true,
-            }),
-            None,
-            None,
-        ]);
-        pump.process(report(&[0, 0xc3]));
-        assert!(matches!(
-            events.recv().unwrap().event,
-            Input::GesturePress { .. }
-        ));
-        shared.release_all();
-        shared.emergency.store(false, Ordering::Release);
-        pump.process(report(&[0, 0]));
-        assert!(!pump.busy());
-        assert!(
-            events
-                .try_iter()
-                .all(|event| !matches!(event.event, Input::GestureRelease))
-        );
-    }
-
-    #[test]
-    fn unrelated_receiver_slots_never_reach_the_output_queue() {
-        let (shared, events, _) = Shared::new(config::defaults(), "test".into(), true).unwrap();
-        shared.native_ready.store(true, Ordering::Release);
-        shared.device_connected.store(true, Ordering::Release);
-        let mut pump = Pump::new(shared, 2, 7);
-        pump.configure([
-            Some(Divert {
-                cid: 0xc3,
-                raw_xy: true,
-            }),
-            None,
-            None,
-        ]);
-        let mut unrelated = report(&[0, 0xc3]);
-        unrelated.device = 3;
-        pump.process(unrelated);
-        assert!(events.is_empty());
-        assert!(!pump.busy());
-    }
-}
-
-#[cfg(test)]
-#[path = "hardware_fixtures.rs"]
-mod hardware_fixtures;

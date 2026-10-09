@@ -154,7 +154,9 @@ impl Settings {
             custom: String::new(),
             profile_name: String::new(),
             apps: String::new(),
-            dpi_presets: "800, 1200, 1600, 2400".into(),
+            dpi_presets: config::DEFAULT_DPI_PRESETS
+                .map(|dpi| dpi.to_string())
+                .join(", "),
             delete_profile: false,
             reload_confirmation: false,
             close_confirmation: false,

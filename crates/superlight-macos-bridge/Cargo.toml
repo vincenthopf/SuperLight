@@ -12,6 +12,3 @@ crate-type = ["staticlib", "rlib"]
 superlight-core = { path = "../superlight-core" }
 superlight-ipc = { path = "../superlight-ipc" }
 serde_json.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
