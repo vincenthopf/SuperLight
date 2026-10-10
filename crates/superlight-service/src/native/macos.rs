@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use super::{UiEvent, login, macos_ffi::*};
+use super::{UiEvent, battery, login, macos_ffi::*};
 use crate::{
     hook::Hook,
     shared::{Command, Shared},
@@ -35,6 +35,21 @@ static SHARED: OnceLock<Arc<Shared>> = OnceLock::new();
 static LOOP_SOURCE: Mutex<Option<(usize, usize)>> = Mutex::new(None);
 static EVENTS: AtomicU32 = AtomicU32::new(0);
 static FOCUS_PID: AtomicU32 = AtomicU32::new(0);
+static PENDING_NOTICE: Mutex<Option<String>> = Mutex::new(None);
+static NOTICE_DESCRIPTOR: BlockDescriptor = BlockDescriptor {
+    reserved: 0,
+    size: size_of::<Block<NoticeCallback>>(),
+    signature: c"v@?B@\"NSError\"".as_ptr(),
+};
+static NOTICE_BLOCK: Block<NoticeCallback> = Block {
+    isa: &raw const _NSConcreteGlobalBlock,
+    flags: BLOCK_IS_GLOBAL | BLOCK_HAS_SIGNATURE,
+    reserved: 0,
+    invoke: authorized,
+    descriptor: &NOTICE_DESCRIPTOR,
+};
+
+type NoticeCallback = unsafe extern "C" fn(*const c_void, bool, Id);
 
 thread_local! {
     static HOOK: RefCell<Option<Hook>> = const { RefCell::new(None) };
@@ -362,6 +377,7 @@ unsafe extern "C" fn perform(_: *mut c_void) {
                 }
                 if events & 4 != 0 {
                     native.refresh_permissions();
+                    native.refresh_battery();
                 }
                 if events & 8 != 0 {
                     let app: Id = msg1(
@@ -551,6 +567,89 @@ unsafe fn process_event(kind: u32, event: Cf) -> Cf {
     })
 }
 
+unsafe fn bundled() -> bool {
+    let bundle: Id = msg0(class(c"NSBundle"), c"mainBundle");
+    if bundle.is_null() || msg0::<Id>(bundle, c"bundleIdentifier").is_null() {
+        return false;
+    }
+    let path: Id = msg0(bundle, c"bundlePath");
+    !path.is_null() && string(".app").is_ok_and(|suffix| msg1(path, c"hasSuffix:", suffix.0))
+}
+
+unsafe extern "C" fn authorized(_: *const c_void, granted: bool, _: Id) {
+    let _ = std::panic::catch_unwind(|| {
+        let body = PENDING_NOTICE
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+        if let Some(body) = body
+            && granted
+        {
+            deliver(&body);
+        }
+    });
+}
+
+unsafe fn deliver(body: &str) {
+    let _pool = Pool::new();
+    let (Ok(identifier), Ok(title), Ok(body)) = (
+        string("io.github.vincenthopf.SuperLight.battery-low"),
+        string("Mouse battery low"),
+        string(body),
+    ) else {
+        return;
+    };
+    let content: Id = msg0(class(c"UNMutableNotificationContent"), c"new");
+    if content.is_null() {
+        return;
+    }
+    msg1::<_, ()>(content, c"setTitle:", title.0);
+    msg1::<_, ()>(content, c"setBody:", body.0);
+    let request: Id = msg3(
+        class(c"UNNotificationRequest"),
+        c"requestWithIdentifier:content:trigger:",
+        identifier.0,
+        content,
+        ptr::null_mut::<c_void>(),
+    );
+    if !request.is_null() {
+        let center: Id = msg0(
+            class(c"UNUserNotificationCenter"),
+            c"currentNotificationCenter",
+        );
+        msg2::<_, _, ()>(
+            center,
+            c"addNotificationRequest:withCompletionHandler:",
+            request,
+            ptr::null_mut::<c_void>(),
+        );
+    }
+    msg0::<()>(content, c"release");
+}
+
+unsafe fn notify_low_battery(body: String) {
+    if !bundled() {
+        eprintln!("SuperLight: {body}");
+        return;
+    }
+    *PENDING_NOTICE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(body);
+    let center: Id = msg0(
+        class(c"UNUserNotificationCenter"),
+        c"currentNotificationCenter",
+    );
+    if center.is_null() {
+        return;
+    }
+    msg2::<_, _, ()>(
+        center,
+        c"requestAuthorizationWithOptions:completionHandler:",
+        4usize,
+        &NOTICE_BLOCK,
+    );
+}
+
 unsafe extern "C" fn tap_callback(_: Cf, kind: u32, event: Cf, _: *mut c_void) -> Cf {
     std::panic::catch_unwind(|| process_event(kind, event)).unwrap_or_else(|_| {
         if let Some(shared) = SHARED.get() {
@@ -564,8 +663,11 @@ struct Native {
     app: Id,
     delegate: Id,
     status: Id,
+    button: Id,
     center: Id,
     pause_item: Id,
+    battery: Option<u8>,
+    alert: battery::Alert,
     tap: Option<Owned>,
     tap_source: Option<Owned>,
     source: Owned,
@@ -605,6 +707,7 @@ impl Native {
         }
         msg1::<_, ()>(icon, c"setTemplate:", true);
         msg1::<_, ()>(button, c"setImage:", icon);
+        msg1::<_, ()>(button, c"setImagePosition:", 2usize);
         msg1::<_, ()>(
             button,
             c"setAccessibilityLabel:",
@@ -689,8 +792,11 @@ impl Native {
             app,
             delegate,
             status,
+            button,
             center,
             pause_item,
+            battery: None,
+            alert: battery::Alert::default(),
             tap: None,
             tap_source: None,
             source,
@@ -768,6 +874,46 @@ impl Native {
                 c"setState:",
                 isize::from(shared.policy.load().paused),
             );
+        }
+    }
+
+    fn refresh_battery(&mut self) {
+        let Some(shared) = SHARED.get() else {
+            return;
+        };
+        let connected = shared.device_connected.load(Ordering::Acquire);
+        let (level, notice) = {
+            let snapshot = shared
+                .snapshot
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let device = snapshot.device.as_ref().filter(|_| connected);
+            let level = device
+                .and_then(|device| device.battery)
+                .filter(|level| *level > 0);
+            if level == self.battery {
+                return;
+            }
+            let notice = level
+                .filter(|level| self.alert.update(*level))
+                .map(|level| {
+                    battery::message(device.map_or("", |device| device.name.as_str()), level)
+                });
+            (level, notice)
+        };
+        self.battery = level;
+        unsafe {
+            if let (Ok(title), Ok(description)) = (
+                string(&battery::title(level)),
+                string(&battery::description(level)),
+            ) {
+                msg1::<_, ()>(self.button, c"setTitle:", title.0);
+                msg1::<_, ()>(self.button, c"setAccessibilityLabel:", description.0);
+                msg1::<_, ()>(self.button, c"setToolTip:", description.0);
+            }
+            if let Some(notice) = notice {
+                notify_low_battery(notice);
+            }
         }
     }
 }

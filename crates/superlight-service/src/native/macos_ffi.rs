@@ -139,7 +139,37 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+#[repr(C)]
+pub struct BlockDescriptor {
+    pub reserved: usize,
+    pub size: usize,
+    pub signature: *const c_char,
+}
+
+unsafe impl Sync for BlockDescriptor {}
+
+#[repr(C)]
+pub struct Block<F> {
+    pub isa: *const u8,
+    pub flags: i32,
+    pub reserved: i32,
+    pub invoke: F,
+    pub descriptor: *const BlockDescriptor,
+}
+
+unsafe impl<F: Sync> Sync for Block<F> {}
+
+pub const BLOCK_IS_GLOBAL: i32 = 1 << 28;
+pub const BLOCK_HAS_SIGNATURE: i32 = 1 << 30;
+
+unsafe extern "C" {
+    pub static _NSConcreteGlobalBlock: u8;
+}
+
 #[link(name = "AppKit", kind = "framework")]
+unsafe extern "C" {}
+
+#[link(name = "UserNotifications", kind = "framework")]
 unsafe extern "C" {}
 
 #[link(name = "objc")]
