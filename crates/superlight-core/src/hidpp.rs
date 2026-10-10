@@ -21,6 +21,7 @@ pub const SMART_SHIFT_ENHANCED: u16 = 0x2111;
 pub const UNIFIED_BATTERY: u16 = 0x1004;
 pub const BATTERY_STATUS: u16 = 0x1000;
 pub const DEVICE_NAME: u16 = 0x0005;
+pub const WIRELESS_DEVICE_STATUS: u16 = 0x1d4b;
 pub const MOUSE_GESTURE_CID: u16 = 0x00c3;
 pub const VIRTUAL_GESTURE_CID: u16 = 0x00d7;
 pub const MULTIPLATFORM_GESTURE_CID: u16 = 0x00d0;
@@ -31,6 +32,8 @@ pub const DEVICE_INDICES: [u8; 7] = [0xff, 1, 2, 3, 4, 5, 6];
 pub const MAX_CONTROLS: usize = 32;
 pub const DIVERTED_BUTTONS_EVENT: u8 = 0;
 pub const RAW_XY_EVENT: u8 = 1;
+pub const DEVICE_CONNECTION: u8 = 0x41;
+pub const LINK_NOT_ESTABLISHED: u8 = 0x40;
 pub const KEY_DIVERTABLE: u16 = 0x0020;
 pub const KEY_VIRTUAL: u16 = 0x0080;
 pub const KEY_RAW_XY: u16 = 0x0100;
@@ -88,6 +91,11 @@ pub fn parse(raw: &[u8]) -> Option<Message<'_>> {
         software: raw[offset + 2] & 15,
         params: &raw[offset + 3..],
     })
+}
+
+pub fn notification(message: Message<'_>, device: u8) -> bool {
+    message.device == device
+        && (message.software == NOTIFICATION_SOFTWARE || message.feature == DEVICE_CONNECTION)
 }
 
 pub fn encode(

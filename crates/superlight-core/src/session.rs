@@ -83,6 +83,7 @@ pub struct Features {
     pub battery: Option<u8>,
     pub unified_battery: bool,
     pub name: Option<u8>,
+    pub wireless_status: Option<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -127,6 +128,10 @@ impl<T: Transport> Session<T> {
     }
     pub fn diverts(&self) -> &[Option<Divert>; 3] {
         &self.diverts
+    }
+
+    pub fn forget_diverts(&mut self) {
+        self.diverts = [None; 3];
     }
 
     pub fn request(
@@ -174,9 +179,7 @@ impl<T: Transport> Session<T> {
                     return Err(ProtocolError::Device(code).into());
                 }
                 ResponseMatch::Unrelated => {
-                    if message.device == self.device_index
-                        && message.software == hidpp::NOTIFICATION_SOFTWARE
-                    {
+                    if hidpp::notification(message, self.device_index) {
                         notify(Report::from_message(message));
                     }
                 }
@@ -197,8 +200,7 @@ impl<T: Transport> Session<T> {
             return Err(ProtocolError::Malformed.into());
         }
         if let Some(message) = hidpp::parse(&buffer[..len])
-            && message.device == self.device_index
-            && message.software == hidpp::NOTIFICATION_SOFTWARE
+            && hidpp::notification(message, self.device_index)
         {
             notify(Report::from_message(message));
         }
@@ -296,6 +298,10 @@ impl<T: Transport> Session<T> {
         if self.features.battery.is_none() {
             self.features.battery = self.feature(hidpp::BATTERY_STATUS, notify)?;
         }
+        self.features.wireless_status = self
+            .feature(hidpp::WIRELESS_DEVICE_STATUS, notify)
+            .ok()
+            .flatten();
         Ok(())
     }
 

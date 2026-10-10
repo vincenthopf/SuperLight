@@ -7,20 +7,23 @@ use crate::{
 pub enum DeviceEvent {
     Button { source: u8, down: bool },
     Motion { x: i16, y: i16 },
+    Relinked,
 }
 
 pub struct Notifications {
     device: u8,
     feature: u8,
+    wireless_status: Option<u8>,
     diverts: [Option<Divert>; 3],
     held: [bool; 3],
 }
 
 impl Notifications {
-    pub fn new(device: u8, feature: u8) -> Self {
+    pub fn new(device: u8, feature: u8, wireless_status: Option<u8>) -> Self {
         Self {
             device,
             feature,
+            wireless_status,
             diverts: [None; 3],
             held: [false; 3],
         }
@@ -39,11 +42,36 @@ impl Notifications {
         self.held.fill(false);
     }
 
-    pub fn process(&mut self, report: Report, mut emit: impl FnMut(DeviceEvent)) {
-        if report.device != self.device
-            || report.feature != self.feature
-            || report.software != hidpp::NOTIFICATION_SOFTWARE
+    fn relinked(&self, report: &Report) -> bool {
+        let params = report.params();
+        if report.feature == hidpp::DEVICE_CONNECTION
+            && report.feature != self.feature
+            && Some(report.feature) != self.wireless_status
+            && report.software != hidpp::SOFTWARE
         {
+            report.function << 4 | report.software != 0
+                && params
+                    .first()
+                    .is_some_and(|flags| flags & hidpp::LINK_NOT_ESTABLISHED == 0)
+        } else {
+            Some(report.feature) == self.wireless_status
+                && report.function == 0
+                && report.software == hidpp::NOTIFICATION_SOFTWARE
+                && params.len() >= 2
+                && (params[0] == 1 || params[1] == 1)
+        }
+    }
+
+    pub fn process(&mut self, report: Report, mut emit: impl FnMut(DeviceEvent)) {
+        if report.device != self.device {
+            return;
+        }
+        if self.relinked(&report) {
+            self.clear();
+            emit(DeviceEvent::Relinked);
+            return;
+        }
+        if report.feature != self.feature || report.software != hidpp::NOTIFICATION_SOFTWARE {
             return;
         }
         if report.function == hidpp::DIVERTED_BUTTONS_EVENT && report.len >= 2 {
