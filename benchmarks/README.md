@@ -143,3 +143,94 @@ The output directory must not exist before the run.
 - `private-backups/`: copies of both configuration files. Do not publish them.
 
 Before publishing, copy only the summaries, JSONL traces and manifest into `benchmarks/results/<date>-openlogi/` and add a `sha256.txt`.
+
+# MX Master 3S hardware soak and sleep/wake runbook
+
+`macos/soak.py` checks how the installed SuperLight recovers from mouse power cycles and Mac sleep, and how its memory changes over hours. It attaches to the running app. It never stops, restarts or reconfigures SuperLight. It only calls `superlight --status` every second and `superlight --refresh` after each recovery.
+
+Each phase writes to its own subdirectory of one output directory: `soak.jsonl` (status transitions, new errors, clock gaps and memory samples), `summary.json` and `manifest.json`. After every phase the script rebuilds `<output>/summary.json` and `<output>/mice-entry.json` from all phases in that directory. `mice-entry.json` has the shape of a `physical_verification` item in `compatibility/mice.json`. A phase key is in `checked` only if that phase passed. `input_latency` always stays in `not_checked`, because no instrument exists for it.
+
+The `stats` object in `superlight --status` shows which recovery path ran:
+
+- `connects` and `disconnects`: full HID reconnects. Mac sleep and a Bluetooth power cycle should increase these.
+- `relinks`: the mouse re-linked while the HID device stayed open (HID++ `0x41` or `0x1D4B`). A power cycle on a Bolt or Unifying receiver may use this path.
+- `reapplies`: complete reapplications of DPI, SmartShift and button diversion. Each successful connect or relink adds one.
+- `last_connected_at` and `last_relink_at`: Unix time in seconds, or `null`.
+
+Every command below runs from the SuperLight checkout. Use the same `OUT` for all phases.
+
+```sh
+OUT="$PWD/.working/soak-$(date +%Y%m%d)"
+```
+
+## 1. Prepare (5 minutes)
+
+1. Install a SuperLight build that includes the `stats` counters. Older builds fail the `stats_available` check, because they cannot tell a relink from a reconnect.
+2. Move the stale Mouser LaunchAgent: `launchctl bootout gui/$(id -u)/io.github.tombadash.mouser; mv ~/Library/LaunchAgents/io.github.tombadash.mouser.plist ~/Desktop/`. The `bootout` error "No such process" is fine.
+3. Quit Mouser, OpenLogi and Logi Options+ if any of them is running.
+4. In SuperLight settings, set DPI to a value that is not the mouse default, for example 1600, and map at least two buttons, for example back and forward. The DPI read-back then proves that SuperLight reapplied its settings.
+5. Run the read-only check:
+
+   ```sh
+   uv run --no-project --python 3.12 python benchmarks/macos/soak.py check
+   ```
+
+   It exits 0 when every required item is `ok: true`: SuperLight running, `--status` reachable, `permissions.listen` and `permissions.inject` true, `native_ready` true, mouse connected, `stats` present, no other remapper running, and no Mouser LaunchAgent. `logi_options_plus_launch_agent`, `caffeinate_not_running` and `power_source` are information only. Note the `transport` under `device_connected`. It becomes the transport in the mice entry.
+
+Every phase runs the same check first and refuses to start if a required item fails.
+
+## 2. Reconnect storm (10 to 15 minutes, attended)
+
+```sh
+uv run --no-project --python 3.12 python benchmarks/macos/soak.py reconnect --output "$OUT"
+```
+
+The script runs 10 cycles. In each cycle:
+
+1. When asked, slide the power switch under the mouse to OFF and press Enter. In cycle 5, hold the back button down first, switch the mouse off while holding it, release it, then press Enter.
+2. Wait. The script waits up to 15 seconds for the mouse to disappear. On a Bolt or Unifying receiver it may stay listed. The script says so and continues.
+3. When asked, slide the switch to ON, move the mouse a little, and press Enter.
+4. The script waits for the mouse to be ready, for a connect or relink counter to change, and then reads DPI and SmartShift back with `--refresh`.
+5. Answer `y` or `n`: press two mapped buttons and say whether both performed their actions. Then say whether any button, modifier key or drag is stuck. Do not press the mode shift button above the wheel during the run. It changes the wheel mode on the mouse, and the SmartShift read-back would then not match the configuration.
+
+A cycle passes when the mouse is ready within 90 seconds, DPI and SmartShift match the configuration, both mapped buttons work, nothing is stuck and `dropped_events` did not change. The phase passes when all 10 cycles pass. `summary.json` lists each cycle's recovery time and its path: `reconnect`, `relink` or `none_observed`.
+
+## 3. Sleep and wake (about 10 minutes, attended)
+
+Do not run `caffeinate` or anything else that blocks sleep during this phase.
+
+```sh
+uv run --no-project --python 3.12 python benchmarks/macos/soak.py sleep --output "$OUT"
+```
+
+The script runs 3 cycles. In each cycle:
+
+1. When asked, press Enter, then within 10 seconds choose Apple menu > Sleep.
+2. Wait at least 1 minute. Wake the Mac with a key press, log in, and return to the Terminal window.
+3. When asked, move the mouse a little and press Enter.
+4. Answer the same two `y` or `n` questions as in the reconnect storm.
+
+A cycle passes on the same conditions as a reconnect cycle, and the script must also have seen the sleep. It counts the sleep as seen if `suspended` was true or the wall clock jumped by more than 20 seconds. The summary also lists the `pmset -g log` Sleep and Wake lines from the phase.
+
+## 4. Memory soak (2 to 8 hours, unattended)
+
+Connect the Mac to power. Do not log out or switch users. A read-only check with the screen locked once showed `native_ready` and both permissions as false. The cause is not confirmed, so check the `native_ready` transitions in `soak.jsonl` afterwards.
+
+```sh
+uv run --no-project --python 3.12 python benchmarks/macos/soak.py memory --output "$OUT" --hours 4
+```
+
+The script starts `caffeinate -dims` tied to its own process, so the Mac stays awake only during this phase. It samples the SuperLight processes every 10 seconds with the same counters as `observe.py` and polls `--status` every second. The status polling adds IPC work to the service, so the CPU and wakeup numbers from this phase are not comparable with the background comparison above. You do not need to touch the mouse. If the mouse goes to sleep on its own, the transitions are recorded.
+
+The phase passes when it runs for the full time, lasts at least 30 minutes, the SuperLight process set does not change, the mouse is connected at the end, and the median physical footprint of the last 10-minute bucket is at most 5 MiB above the first bucket. Change the limit with `--max-growth-mib`. The summary also reports footprint, resident memory and thread count (first, last, max), the footprint slope in MiB per hour, CPU percent and wakeups per second. Ctrl-C stops the soak early. The partial result is saved and does not pass.
+
+## 5. Record the result in compatibility/mice.json
+
+```sh
+uv run --no-project --python 3.12 python benchmarks/macos/soak.py record --output "$OUT"
+git diff compatibility/
+```
+
+`record` copies `$OUT/summary.json` to `compatibility/evidence/<date>-mx-master-3s-<transport>-soak.json` and appends `$OUT/mice-entry.json` to the MX Master 3S `physical_verification` list. It refuses if the evidence file already exists or if the phases ran on different SuperLight builds. The entry identifies the build by the SHA-256 of `Contents/MacOS/superlight`. Do not edit the earlier macOS 26.3 entry. Add the new entry next to it.
+
+The `checked` list holds only `discovery` and the soak keys that passed. If you also confirmed specific buttons, add their keys, for example `back_play_pause`, by hand before you commit. `soak.jsonl` files stay in `$OUT`. They contain configuration and error text, so review them before publishing.

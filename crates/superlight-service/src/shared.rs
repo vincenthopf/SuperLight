@@ -5,14 +5,14 @@ use std::sync::{
     Arc, Condvar, Mutex,
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use superlight_core::{
     actions::{Action, Platform},
     gesture::Source,
     input::Dispatch,
     policy::Policy,
 };
-use superlight_ipc::{DeviceStatus, Permissions, Request, Response, Snapshot};
+use superlight_ipc::{DeviceStatus, Permissions, Request, Response, Snapshot, Stats};
 
 pub const INPUT_CAPACITY: usize = 256;
 pub const COMMAND_CAPACITY: usize = 32;
@@ -84,6 +84,12 @@ pub struct Shared {
     pub generation: AtomicU64,
     pub input_epoch: AtomicU64,
     pub dropped: AtomicU64,
+    pub connects: AtomicU64,
+    pub disconnects: AtomicU64,
+    pub relinks: AtomicU64,
+    pub reapplies: AtomicU64,
+    pub last_connected_at: AtomicU64,
+    pub last_relink_at: AtomicU64,
     pub gesture_held: AtomicBool,
     pub gesture_motion: AtomicBool,
     pub gesture_hid: AtomicBool,
@@ -122,6 +128,12 @@ impl Shared {
             generation: AtomicU64::new(1),
             input_epoch: AtomicU64::new(1),
             dropped: AtomicU64::new(0),
+            connects: AtomicU64::new(0),
+            disconnects: AtomicU64::new(0),
+            relinks: AtomicU64::new(0),
+            reapplies: AtomicU64::new(0),
+            last_connected_at: AtomicU64::new(0),
+            last_relink_at: AtomicU64::new(0),
             gesture_held: AtomicBool::new(false),
             gesture_motion: AtomicBool::new(false),
             gesture_hid: AtomicBool::new(false),
@@ -134,6 +146,24 @@ impl Shared {
 
     pub fn now_ms(&self) -> u64 {
         self.started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
+    }
+
+    pub fn unix_now() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_secs())
+    }
+
+    pub fn stats(&self) -> Stats {
+        let at = |value: &AtomicU64| Some(value.load(Ordering::Relaxed)).filter(|at| *at != 0);
+        Stats {
+            connects: self.connects.load(Ordering::Relaxed),
+            disconnects: self.disconnects.load(Ordering::Relaxed),
+            relinks: self.relinks.load(Ordering::Relaxed),
+            reapplies: self.reapplies.load(Ordering::Relaxed),
+            last_connected_at: at(&self.last_connected_at),
+            last_relink_at: at(&self.last_relink_at),
+        }
     }
 
     pub fn stopping(&self) -> bool {
@@ -232,6 +262,7 @@ impl Shared {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone();
         snapshot.dropped_events = self.dropped.load(Ordering::Relaxed);
+        snapshot.stats = self.stats();
         snapshot.suspended = self.suspended.load(Ordering::Acquire);
         snapshot.native_ready = self.native_ready.load(Ordering::Acquire);
         if !self.device_connected.load(Ordering::Acquire) {

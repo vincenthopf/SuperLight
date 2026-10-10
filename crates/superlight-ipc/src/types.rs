@@ -61,6 +61,17 @@ pub struct DeviceStatus {
     pub controls: Vec<Control>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Stats {
+    pub connects: u64,
+    pub disconnects: u64,
+    pub relinks: u64,
+    pub reapplies: u64,
+    pub last_connected_at: Option<u64>,
+    pub last_relink_at: Option<u64>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub instance: String,
@@ -75,6 +86,8 @@ pub struct Snapshot {
     pub device: Option<DeviceStatus>,
     pub hardware_pending: bool,
     pub dropped_events: u64,
+    #[serde(default)]
+    pub stats: Stats,
     pub errors: Vec<String>,
     pub notice: Option<String>,
 }

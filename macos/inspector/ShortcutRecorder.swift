@@ -79,6 +79,7 @@ enum KeyShortcut {
 struct ShortcutRecorder: View {
     @Binding var shortcut: String
     @Binding var message: String
+    var focus: FocusState<Bool>.Binding
     @State private var recording = false
     @State private var held = ""
     @State private var monitor: Any?
@@ -99,6 +100,12 @@ struct ShortcutRecorder: View {
                 .accessibilityValue(recording ? "Recording. Press a key combination." : shortcut.isEmpty ? "None" : KeyShortcut.spoken(shortcut))
             Button(recording ? "Stop" : "Record") { recording ? stop() : start() }
                 .accessibilityLabel(recording ? "Stop recording" : "Record shortcut")
+                .focusable()
+                .focused(focus)
+                .onKeyPress(.space) {
+                    start()
+                    return .handled
+                }
         }
         .onDisappear(perform: removeMonitor)
     }
@@ -113,6 +120,7 @@ struct ShortcutRecorder: View {
         message = ""
         held = ""
         recording = true
+        announce("Recording. Press a key combination.")
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp, .flagsChanged]) { event in
             MainActor.assumeIsolated { consumes(event) } ? nil : event
         }
@@ -120,6 +128,7 @@ struct ShortcutRecorder: View {
 
     private func stop() {
         held = ""
+        message = ""
         removeMonitor()
     }
 
@@ -144,21 +153,29 @@ struct ShortcutRecorder: View {
         case .flagsChanged:
             held = KeyShortcut.modifierNames(event.modifierFlags).joined(separator: "+")
         case .keyDown:
+            if event.isARepeat { return true }
             switch KeyShortcut.capture(event) {
             case .cancel:
                 message = ""
                 finish(event.keyCode)
+                announce("Recording cancelled")
             case .shortcut(let value):
                 shortcut = value
                 message = ""
                 finish(event.keyCode)
+                announce("Recorded " + KeyShortcut.spoken(value))
             case .unsupported(let text):
                 message = text
+                announce(text)
             }
         default:
             break
         }
         return true
+    }
+
+    private func announce(_ text: String) {
+        NSAccessibility.post(element: (NSApp.keyWindow ?? NSApp.mainWindow) as Any, notification: .announcementRequested, userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     private func finish(_ keyCode: UInt16) {

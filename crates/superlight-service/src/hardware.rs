@@ -467,6 +467,10 @@ impl Connected {
                 retry_at = Instant::now();
             }
             if self.pump.relinked() {
+                shared.relinks.fetch_add(1, Ordering::Relaxed);
+                shared
+                    .last_relink_at
+                    .store(Shared::unix_now(), Ordering::Relaxed);
                 applied = None;
             }
             if desired != applied && !self.pump.busy() && Instant::now() >= retry_at {
@@ -477,6 +481,9 @@ impl Connected {
                 let wanted = desired.ok_or(Error::Unsupported)?;
                 match self.reconcile(wanted, applied, shared) {
                     Ok(()) => {
+                        if applied.is_none() {
+                            shared.reapplies.fetch_add(1, Ordering::Relaxed);
+                        }
                         applied = Some(wanted);
                         pending = false;
                         shared.command(Command::HardwarePending(false));
@@ -527,12 +534,17 @@ pub fn run(shared: Arc<Shared>) {
         match connect(api.as_mut().expect("Initialized HID context"), &shared) {
             Ok(Some(mut connected)) => {
                 shared.device_connected.store(true, Ordering::Release);
+                shared.connects.fetch_add(1, Ordering::Relaxed);
+                shared
+                    .last_connected_at
+                    .store(Shared::unix_now(), Ordering::Relaxed);
                 if let Err(error) = connected.run(&shared)
                     && !shared.stopping()
                 {
                     shared.report(format!("Logitech connection: {error}"));
                 }
                 shared.device_connected.store(false, Ordering::Release);
+                shared.disconnects.fetch_add(1, Ordering::Relaxed);
                 shared.release_all();
                 drop(connected);
             }
