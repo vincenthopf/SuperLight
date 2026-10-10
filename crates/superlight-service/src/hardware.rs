@@ -24,6 +24,7 @@ const READ_WAIT: Duration = Duration::from_millis(250);
 const PROBE_WAIT: Duration = Duration::from_millis(350);
 const RETRY_WAIT: Duration = Duration::from_secs(3);
 const HEALTH_INTERVAL: Duration = Duration::from_secs(60);
+const RELINK_SETTLE: Duration = Duration::from_millis(500);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Desired {
@@ -75,18 +76,20 @@ pub struct Pump {
     epoch: u64,
     held: [bool; 3],
     accepted_gesture: bool,
+    relinked: Option<Instant>,
 }
 
 impl Pump {
-    pub fn new(shared: Arc<Shared>, device: u8, feature: u8) -> Self {
+    pub fn new(shared: Arc<Shared>, device: u8, feature: u8, wireless_status: Option<u8>) -> Self {
         let epoch = shared.input_epoch.load(Ordering::Acquire);
         Self {
             shared,
-            notifications: Notifications::new(device, feature),
+            notifications: Notifications::new(device, feature, wireless_status),
             router: Router::default(),
             epoch,
             held: [false; 3],
             accepted_gesture: false,
+            relinked: None,
         }
     }
 
@@ -103,6 +106,12 @@ impl Pump {
         self.held.iter().any(|held| *held)
     }
 
+    pub fn relinked(&mut self) -> bool {
+        self.relinked
+            .take_if(|at| at.elapsed() >= RELINK_SETTLE)
+            .is_some()
+    }
+
     pub fn configure(&mut self, diverts: [Option<superlight_core::session::Divert>; 3]) {
         self.notifications.configure(diverts);
     }
@@ -115,6 +124,7 @@ impl Pump {
             router,
             held,
             accepted_gesture,
+            relinked,
             ..
         } = self;
         notifications.process(report, |event| match event {
@@ -181,6 +191,13 @@ impl Pump {
                         shared.release_all();
                     }
                 }
+            }
+            DeviceEvent::Relinked => {
+                if held.iter().any(|held| *held) {
+                    held.fill(false);
+                    shared.release_all();
+                }
+                *relinked = Some(Instant::now());
             }
         });
     }
@@ -312,6 +329,7 @@ fn connect(api: &mut HidApi, shared: &Arc<Shared>) -> Result<Option<Connected>, 
                 Arc::clone(shared),
                 slot,
                 session.features.reprog.ok_or(Error::Unsupported)?,
+                session.features.wireless_status,
             );
             return Ok(Some(Connected {
                 session,
@@ -358,6 +376,9 @@ impl Connected {
         previous: Option<Desired>,
         shared: &Shared,
     ) -> Result<(), Error> {
+        if previous.is_none() {
+            self.session.forget_diverts();
+        }
         if let Some(dpi) = desired.dpi
             && previous.is_none_or(|old| old.dpi != desired.dpi)
         {
@@ -444,6 +465,9 @@ impl Connected {
                     .unwrap_or(&self.status.model_key)
                     .to_owned();
                 retry_at = Instant::now();
+            }
+            if self.pump.relinked() {
+                applied = None;
             }
             if desired != applied && !self.pump.busy() && Instant::now() >= retry_at {
                 if !pending {

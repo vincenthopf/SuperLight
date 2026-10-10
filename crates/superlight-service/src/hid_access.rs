@@ -46,6 +46,7 @@ impl Access {
                 hidpp::UNIFIED_BATTERY,
                 hidpp::BATTERY_STATUS,
                 hidpp::DEVICE_NAME,
+                hidpp::WIRELESS_DEVICE_STATUS,
             ]
             .contains(&id)
             {
