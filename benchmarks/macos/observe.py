@@ -91,6 +91,18 @@ def app_pids(bundle):
         selected |= children
 
 
+def bundle_pids(bundle, exclude=()):
+    prefix = str(pathlib.Path(bundle).resolve()) + "/"
+    rows = processes()
+    selected = {pid for pid, _, command in rows
+                if command.startswith(prefix) and pathlib.PurePath(command).name not in exclude}
+    while True:
+        children = {pid for pid, parent, _ in rows if parent in selected}
+        if children <= selected:
+            return sorted(selected)
+        selected |= children
+
+
 def summarize(samples):
     first, last = samples[0], samples[-1]
     seconds = last["elapsed_s"] - first["elapsed_s"]
@@ -118,13 +130,13 @@ def summarize(samples):
     return metrics
 
 
-def collect(bundle, output, seconds, interval=1.0, process_ids=None, context=None):
+def collect(bundle, output, seconds, interval=1.0, process_ids=None, context=None, finder=app_pids):
     began = time.monotonic()
     samples = []
     with pathlib.Path(output).open("x", encoding="utf-8") as file:
         while True:
             environment = context() if context is not None else None
-            pids = app_pids(bundle) if process_ids is None else process_ids
+            pids = finder(bundle) if process_ids is None else process_ids
             if not pids:
                 raise RuntimeError(f"No running processes for {bundle}")
             row = {"elapsed_s": time.monotonic() - began,
@@ -145,8 +157,11 @@ def main():
     parser.add_argument("bundle", type=pathlib.Path)
     parser.add_argument("output", type=pathlib.Path)
     parser.add_argument("--seconds", type=float, default=120)
+    parser.add_argument("--whole-bundle", action="store_true",
+                        help="include helpers anywhere in the bundle, such as Contents/Library/LoginItems")
     args = parser.parse_args()
-    print(json.dumps(collect(args.bundle, args.output, args.seconds), indent=2))
+    finder = bundle_pids if args.whole_bundle else app_pids
+    print(json.dumps(collect(args.bundle, args.output, args.seconds, finder=finder), indent=2))
 
 
 if __name__ == "__main__":
