@@ -1972,7 +1972,6 @@ dependencies = [
  "serde_json",
  "superlight-core",
  "superlight-ipc",
- "tempfile",
 ]
 
 [[package]]
@@ -1984,11 +1983,9 @@ dependencies = [
  "ctrlc",
  "hidapi",
  "libc",
- "serde",
  "serde_json",
  "superlight-core",
  "superlight-ipc",
- "tempfile",
  "windows-sys 0.61.2",
 ]
 

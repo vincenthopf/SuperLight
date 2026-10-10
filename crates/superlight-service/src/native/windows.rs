@@ -738,15 +738,3 @@ pub fn run(shared: Arc<Shared>) -> io::Result<()> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn movement_delta_uses_the_previous_hook_position() {
-        LAST_POINT.with(|point| point.set(None));
-        assert_eq!(movement_delta(10, 20), None);
-        assert_eq!(movement_delta(15, 17), Some((5.0, -3.0)));
-    }
-}

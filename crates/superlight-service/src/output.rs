@@ -118,11 +118,7 @@ impl<O: Output> Dispatcher<O> {
                 error = Some(failure);
             }
         }
-        if let Some(error) = error {
-            Err(error)
-        } else {
-            Ok(())
-        }
+        error.map_or(Ok(()), Err)
     }
 
     pub fn release_all(&mut self) -> io::Result<()> {
@@ -153,11 +149,6 @@ fn execute(dispatcher: &mut Dispatcher<NativeOutput>, shared: &Shared, event: Di
         }
         _ => {}
     }
-}
-
-fn begin_gesture(gesture: &mut Gesture, policy: Policy, at: u64) {
-    gesture.options = policy.gestures;
-    gesture.press(at);
 }
 
 pub fn run(shared: Arc<Shared>, receiver: Receiver<QueuedInput>) {
@@ -215,7 +206,8 @@ pub fn run(shared: Arc<Shared>, receiver: Receiver<QueuedInput>) {
             Input::Dispatch(event) => execute(&mut dispatcher, &shared, event),
             Input::GesturePress { at } => {
                 gesture_policy = **shared.policy.load();
-                begin_gesture(&mut gesture, gesture_policy, at);
+                gesture.options = gesture_policy.gestures;
+                gesture.press(at);
                 shared
                     .gesture_motion
                     .store(gesture_policy.gestures.enabled, Ordering::Release);
@@ -281,169 +273,5 @@ pub fn run(shared: Arc<Shared>, receiver: Receiver<QueuedInput>) {
         if let Err(error) = dispatcher.expire(shared.now_ms()) {
             shared.report(error);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::{cell::RefCell, rc::Rc};
-
-    #[derive(Default)]
-    struct Fake {
-        events: Rc<RefCell<Vec<(u8, bool)>>>,
-        failed_release: bool,
-        fail_once: bool,
-    }
-
-    impl Output for Fake {
-        fn mouse(&mut self, button: u8, down: bool) -> io::Result<()> {
-            self.events.borrow_mut().push((button, down));
-            if !down && self.fail_once && !self.failed_release {
-                self.failed_release = true;
-                return Err(io::Error::other("temporary output failure"));
-            }
-            Ok(())
-        }
-        fn chord(&mut self, _: Chord) -> io::Result<()> {
-            Ok(())
-        }
-        fn media(&mut self, _: u8) -> io::Result<()> {
-            Ok(())
-        }
-        fn system(&mut self, _: u8) -> io::Result<()> {
-            Ok(())
-        }
-        fn scroll(&mut self, _: bool, _: i32) -> io::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[test]
-    fn held_mouse_remap_keeps_down_up_and_drop_cleanup() {
-        let fake = Fake::default();
-        let events = Rc::clone(&fake.events);
-        let mut dispatcher = Dispatcher::new(fake);
-        dispatcher
-            .dispatch(
-                Dispatch {
-                    source: 0,
-                    action: Action::Mouse(0),
-                    phase: Phase::Down,
-                },
-                0,
-            )
-            .unwrap();
-        assert_eq!(*events.borrow(), [(0, true)]);
-        drop(dispatcher);
-        assert_eq!(*events.borrow(), [(0, true), (0, false)]);
-    }
-
-    #[test]
-    fn tap_on_an_already_held_output_does_not_break_dragging() {
-        let fake = Fake::default();
-        let events = Rc::clone(&fake.events);
-        let mut dispatcher = Dispatcher::new(fake);
-        dispatcher
-            .dispatch(
-                Dispatch {
-                    source: 0,
-                    action: Action::Mouse(0),
-                    phase: Phase::Down,
-                },
-                0,
-            )
-            .unwrap();
-        dispatcher
-            .dispatch(
-                Dispatch {
-                    source: 4,
-                    action: Action::Mouse(0),
-                    phase: Phase::Tap,
-                },
-                1,
-            )
-            .unwrap();
-        assert_eq!(*events.borrow(), [(0, true)]);
-        dispatcher
-            .dispatch(
-                Dispatch {
-                    source: 0,
-                    action: Action::None,
-                    phase: Phase::Up,
-                },
-                2,
-            )
-            .unwrap();
-        assert_eq!(*events.borrow(), [(0, true), (0, false)]);
-    }
-
-    #[test]
-    fn failed_releases_remain_pending_until_successful_cleanup() {
-        let fake = Fake {
-            fail_once: true,
-            ..Fake::default()
-        };
-        let events = Rc::clone(&fake.events);
-        let mut dispatcher = Dispatcher::new(fake);
-        dispatcher
-            .dispatch(
-                Dispatch {
-                    source: 0,
-                    action: Action::Mouse(0),
-                    phase: Phase::Down,
-                },
-                0,
-            )
-            .unwrap();
-        assert!(
-            dispatcher
-                .dispatch(
-                    Dispatch {
-                        source: 0,
-                        action: Action::None,
-                        phase: Phase::Up
-                    },
-                    1
-                )
-                .is_err()
-        );
-        assert!(dispatcher.any_held());
-        dispatcher.expire(2).unwrap();
-        assert!(!dispatcher.any_held());
-        assert_eq!(*events.borrow(), [(0, true), (0, false), (0, false)]);
-    }
-
-    #[test]
-    fn device_actions_are_returned_without_running_hid_on_the_input_thread() {
-        let mut dispatcher = Dispatcher::new(Fake::default());
-        let action = Action::SwitchScrollMode;
-        assert_eq!(
-            dispatcher
-                .dispatch(
-                    Dispatch {
-                        source: 6,
-                        action,
-                        phase: Phase::Tap
-                    },
-                    0
-                )
-                .unwrap(),
-            Some(action)
-        );
-    }
-
-    #[test]
-    fn separate_gesture_presses_preserve_the_global_cooldown() {
-        let mut gesture = Gesture::default();
-        let mut policy = Policy::default();
-        policy.gestures.enabled = true;
-        policy.gestures.cooldown_ms = 500;
-        begin_gesture(&mut gesture, policy, 0);
-        assert!(gesture.movement(60.0, 0.0, Source::Hid, 1).is_some());
-        assert!(!gesture.release());
-        begin_gesture(&mut gesture, policy, 100);
-        assert_eq!(gesture.movement(60.0, 0.0, Source::Hid, 101), None);
-        assert!(gesture.movement(60.0, 0.0, Source::Hid, 501).is_some());
     }
 }

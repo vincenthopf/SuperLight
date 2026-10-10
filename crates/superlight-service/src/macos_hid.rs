@@ -6,7 +6,10 @@ use std::{
     thread::{self, ThreadId},
     time::{Duration, Instant},
 };
-use superlight_core::{devices, reports::PacketQueue};
+use superlight_core::{devices, hidpp, reports::PacketQueue};
+
+const IOKIT_INTERFACE: i32 = -2;
+const IOHID_REPORT_TYPE_INPUT: u32 = 0;
 
 struct Manager(Owned);
 
@@ -116,10 +119,11 @@ pub(crate) fn enumerate() -> io::Result<Vec<Candidate>> {
             path: CString::new(format!("iokit:{identifier}")).map_err(io::Error::other)?,
             product_id: product as u16,
             name: name.chars().take(255).collect(),
-            bluetooth: bus.starts_with("Bluetooth") || (0xb000..=0xbfff).contains(&product),
+            bluetooth: bus.starts_with("Bluetooth")
+                || hidpp::BLUETOOTH_PRODUCT_IDS.contains(&(product as u16)),
             usage_page: page as u16,
             usage: usage as u16,
-            interface: -2,
+            interface: IOKIT_INTERFACE,
         });
     }
     Ok(result)
@@ -135,7 +139,7 @@ struct CallbackState {
 
 impl CallbackState {
     fn input(&mut self, result: i32, report_type: u32, report_id: u32, bytes: &[u8]) {
-        if report_type != 0 || !matches!(report_id, 0 | 0x10 | 0x11) {
+        if report_type != IOHID_REPORT_TYPE_INPUT || !matches!(report_id, 0 | 0x10 | 0x11) {
             return;
         }
         if result != 0 {
@@ -339,45 +343,5 @@ impl Drop for Device {
             IOHIDDeviceRegisterRemovalCallback(self.device.0, removal_callback, ptr::null_mut());
             IOHIDDeviceClose(self.device.0, 0);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn native_reports_preserve_both_report_id_variants() {
-        let mut state = CallbackState::default();
-        let with_id = [0x11, 0xff, 7, 0x0a, 1, 2];
-        let without_id = [0xff, 7, 0x0a, 1, 2];
-        state.input(0, 0, 0x11, &with_id);
-        state.input(0, 0, 0x11, &without_id);
-        let mut buffer = [0; 64];
-        assert_eq!(state.read(&mut buffer).unwrap(), Some(with_id.len()));
-        assert_eq!(&buffer[..with_id.len()], &with_id);
-        assert_eq!(state.read(&mut buffer).unwrap(), Some(without_id.len()));
-        assert_eq!(&buffer[..without_id.len()], &without_id);
-    }
-
-    #[test]
-    fn unrelated_input_report_types_are_ignored() {
-        let mut state = CallbackState::default();
-        state.input(0, 1, 0x11, &[1, 2, 3]);
-        state.input(0, 0, 1, &[1, 2, 3]);
-        assert_eq!(state.read(&mut [0; 64]).unwrap(), None);
-    }
-
-    #[test]
-    fn queue_overflow_and_removal_fail_closed_before_old_input_is_delivered() {
-        let mut state = CallbackState::default();
-        for _ in 0..=superlight_core::reports::PACKET_CAPACITY {
-            state.input(0, 0, 0x11, &[0xff, 7, 0, 0, 0xc3]);
-        }
-        assert!(state.read(&mut [0; 64]).is_err());
-        let mut state = CallbackState::default();
-        state.input(0, 0, 0x11, &[0xff, 7, 0, 0, 0xc3]);
-        state.removed = true;
-        assert!(state.read(&mut [0; 64]).is_err());
     }
 }

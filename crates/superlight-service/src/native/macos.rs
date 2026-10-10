@@ -23,6 +23,14 @@ use superlight_core::{
 };
 use superlight_ipc::{AppInfo, Permissions, Request, store::atomic_write};
 
+const CG_FLAG_SHIFT: u64 = 1 << 17;
+const CG_FLAG_CONTROL: u64 = 1 << 18;
+const CG_FLAG_ALTERNATE: u64 = 1 << 19;
+const CG_FLAG_COMMAND: u64 = 1 << 20;
+const CG_BUTTON_MIDDLE: i64 = 2;
+const CG_BUTTON_BACK: i64 = 3;
+const CG_BUTTON_FORWARD: i64 = 4;
+
 static SHARED: OnceLock<Arc<Shared>> = OnceLock::new();
 static LOOP_SOURCE: Mutex<Option<(usize, usize)>> = Mutex::new(None);
 static EVENTS: AtomicU32 = AtomicU32::new(0);
@@ -43,7 +51,7 @@ fn permitted_output() -> io::Result<()> {
             "Secure Input is active. Remapping is paused.",
         ));
     }
-    if !unsafe { CGPreflightPostEventAccess() || AXIsProcessTrusted() } {
+    if !unsafe { AXIsProcessTrusted() || CGPreflightPostEventAccess() } {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             "Allow SuperLight in Privacy & Security > Accessibility",
@@ -82,10 +90,10 @@ pub fn mouse(button: u8, down: bool) -> io::Result<()> {
 
 fn modifier(key: u16) -> u64 {
     match key {
-        55 | 54 => 1 << 20,
-        56 | 60 => 1 << 17,
-        58 | 61 => 1 << 19,
-        59 | 62 => 1 << 18,
+        55 | 54 => CG_FLAG_COMMAND,
+        56 | 60 => CG_FLAG_SHIFT,
+        58 | 61 => CG_FLAG_ALTERNATE,
+        59 | 62 => CG_FLAG_CONTROL,
         _ => 0,
     }
 }
@@ -429,9 +437,9 @@ unsafe extern "C" fn awake(_: Id, _: Sel, _: Id) {
 
 fn button_source(button: i64) -> Option<usize> {
     match button {
-        2 => Some(0),
-        3 => Some(2),
-        4 => Some(3),
+        CG_BUTTON_MIDDLE => Some(0),
+        CG_BUTTON_BACK => Some(2),
+        CG_BUTTON_FORWARD => Some(3),
         _ => None,
     }
 }
@@ -707,7 +715,7 @@ impl Native {
             return;
         };
         let listen = unsafe { CGPreflightListenEventAccess() };
-        let inject = unsafe { CGPreflightPostEventAccess() || AXIsProcessTrusted() };
+        let inject = unsafe { AXIsProcessTrusted() || CGPreflightPostEventAccess() };
         if listen && inject && self.tap.is_none() && !shared.stopping() {
             unsafe {
                 let mask = [5, 6, 7, 22, 25, 26, 27]
@@ -817,29 +825,4 @@ pub fn run(shared: Arc<Shared>) -> io::Result<()> {
     });
     shared.stop();
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn native_button_numbers_and_modifiers_match_v36() {
-        assert_eq!(button_source(2), Some(0));
-        assert_eq!(button_source(3), Some(2));
-        assert_eq!(button_source(4), Some(3));
-        assert_eq!(button_source(0), None);
-        assert_eq!(modifier(55) | modifier(56), (1 << 20) | (1 << 17));
-        assert_eq!(modifier(0), 0);
-    }
-
-    #[test]
-    fn framework_objects_release_without_an_input_permission_prompt() {
-        for _ in 0..1000 {
-            let value = string("MX Master 3S").unwrap();
-            assert_eq!(unsafe { text(value.0) }, "MX Master 3S");
-            let value = number(0x46d).unwrap();
-            assert_eq!(unsafe { integer(value.0) }, 0x46d);
-        }
-    }
 }

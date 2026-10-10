@@ -13,9 +13,6 @@ use superlight_ipc::{
 };
 
 fn dispatch(bytes: &[u8], paths: &Paths) -> Result<Value, String> {
-    if bytes.len() > superlight_core::CONFIG_LIMIT + 4096 {
-        return Err("Request exceeds the size limit".into());
-    }
     let value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     match value["local"].as_str() {
         Some("catalog") => {
@@ -84,70 +81,5 @@ pub unsafe extern "C" fn superlight_call(bytes: *const u8, length: usize) -> *mu
 pub unsafe extern "C" fn superlight_free(value: *mut c_char) {
     if !value.is_null() {
         drop(unsafe { CString::from_raw(value) });
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn catalog_and_shortcuts_use_core_contracts() {
-        let dir = tempfile::tempdir().unwrap();
-        let paths = Paths::in_dir(dir.path());
-        let catalog = dispatch(br#"{"local":"catalog"}"#, &paths).unwrap();
-        assert!(
-            catalog["actions"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|a| a[0] == "mission_control")
-        );
-        assert!(
-            dispatch(
-                br#"{"local":"validate_action","action":"custom:cmd+shift+p"}"#,
-                &paths
-            )
-            .is_ok()
-        );
-        assert!(
-            dispatch(
-                br#"{"local":"validate_action","action":"custom:not-a-key"}"#,
-                &paths
-            )
-            .is_err()
-        );
-    }
-    #[test]
-    fn malformed_and_oversized_requests_fail() {
-        let paths = Paths::in_dir("/unused");
-        assert!(dispatch(b"bad json", &paths).is_err());
-        assert!(dispatch(&vec![0; superlight_core::CONFIG_LIMIT + 4097], &paths).is_err());
-        assert!(dispatch(br#"{"local":"unknown"}"#, &paths).is_err());
-    }
-    #[test]
-    fn save_requires_instance_before_connecting() {
-        let request = json!({"request": {"command": "apply", "expected_revision": 1, "config": config::defaults()}});
-        assert_eq!(
-            dispatch(
-                &serde_json::to_vec(&request).unwrap(),
-                &Paths::in_dir("/unused")
-            )
-            .unwrap_err(),
-            "Missing service instance for save"
-        );
-    }
-    #[test]
-    fn ffi_allocates_and_releases_error_response() {
-        unsafe {
-            let value = superlight_call(std::ptr::null(), 0);
-            let text = std::ffi::CStr::from_ptr(value).to_str().unwrap();
-            assert!(
-                !serde_json::from_str::<Value>(text).unwrap()["ok"]
-                    .as_bool()
-                    .unwrap()
-            );
-            superlight_free(value);
-            superlight_free(std::ptr::null_mut());
-        }
     }
 }

@@ -8,18 +8,15 @@ license.workspace = true
 [lints.clippy]
 collapsible_if = "allow"
 
-[features]
-default = ["desktop"]
-desktop = ["dep:eframe", "dep:image"]
-
 [[bin]]
 name = "superlight-ui"
 path = "src/main.rs"
-required-features = ["desktop"]
 
 [dependencies]
 superlight-core = { path = "../superlight-core" }
 superlight-ipc = { path = "../superlight-ipc" }
 serde_json.workspace = true
-eframe = { version = "=0.36.2", optional = true, default-features = false, features = ["default_fonts", "glow"] }
-image = { version = "0.25", optional = true, default-features = false, features = ["png"] }
+
+[target.'cfg(windows)'.dependencies]
+eframe = { version = "=0.36.2", default-features = false, features = ["default_fonts", "glow"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

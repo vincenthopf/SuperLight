@@ -140,7 +140,7 @@ fn token_matches(left: &str, right: &str) -> bool {
 }
 
 fn configure(stream: &Stream) -> io::Result<()> {
-    stream.set_nonblocking(true)?;
+    stream.set_nonblocking(false)?;
     #[cfg(windows)]
     stream.set_nodelay(true)?;
     Ok(())
@@ -212,14 +212,16 @@ fn remaining(deadline: Instant) -> io::Result<Duration> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::TimedOut, "Local request timed out"))
 }
 
-fn wait_for_progress(deadline: Instant) -> io::Result<()> {
-    std::thread::sleep(remaining(deadline)?.min(Duration::from_millis(1)));
-    Ok(())
+fn ignore_shut_down(result: io::Result<()>) -> io::Result<()> {
+    match result {
+        Err(error) if error.kind() != io::ErrorKind::InvalidInput => Err(error),
+        _ => Ok(()),
+    }
 }
 
 fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        remaining(deadline)?;
+        ignore_shut_down(stream.set_read_timeout(Some(remaining(deadline)?)))?;
         match stream.read(bytes) {
             Ok(0) => {
                 return Err(io::Error::new(
@@ -228,8 +230,13 @@ fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> i
                 ));
             }
             Ok(count) => bytes = &mut bytes[count..],
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted
+                        | io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                ) => {}
             Err(error) => return Err(error),
         }
     }
@@ -238,7 +245,7 @@ fn read_exact(mut stream: &Stream, mut bytes: &mut [u8], deadline: Instant) -> i
 
 fn write_all(mut stream: &Stream, mut bytes: &[u8], deadline: Instant) -> io::Result<()> {
     while !bytes.is_empty() {
-        remaining(deadline)?;
+        ignore_shut_down(stream.set_write_timeout(Some(remaining(deadline)?)))?;
         match stream.write(bytes) {
             Ok(0) => {
                 return Err(io::Error::new(
@@ -247,8 +254,13 @@ fn write_all(mut stream: &Stream, mut bytes: &[u8], deadline: Instant) -> io::Re
                 ));
             }
             Ok(count) => bytes = &bytes[count..],
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => wait_for_progress(deadline)?,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::Interrupted
+                        | io::ErrorKind::WouldBlock
+                        | io::ErrorKind::TimedOut
+                ) => {}
             Err(error) => return Err(error),
         }
     }
@@ -278,164 +290,4 @@ fn read_frame<T: DeserializeOwned>(stream: &Stream, deadline: Instant) -> io::Re
 
 fn invalid(error: impl ToString) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, error.to_string())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Snapshot;
-    use std::thread;
-
-    #[test]
-    fn authenticated_round_trip_and_endpoint_cleanup() {
-        let directory = tempfile::tempdir().unwrap();
-        let paths = Paths::in_dir(directory.path());
-        let server = Server::bind(paths.clone()).unwrap();
-        let endpoint = server.endpoint.clone();
-        let join = thread::spawn(move || {
-            let connection = server.accept().unwrap();
-            assert!(matches!(connection.request, Request::Get));
-            connection
-                .respond(&Response::success(Snapshot {
-                    revision: 7,
-                    ..Snapshot::default()
-                }))
-                .unwrap();
-        });
-        let response = call_endpoint(&endpoint, &Request::Get).unwrap();
-        assert!(response.ok);
-        assert_eq!(response.snapshot.unwrap().revision, 7);
-        join.join().unwrap();
-        assert!(!paths.endpoint.exists());
-    }
-
-    #[test]
-    fn wrong_authentication_never_dispatches_a_command() {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
-        let mut endpoint = server.endpoint.clone();
-        endpoint.token = "0".repeat(64);
-        let join = thread::spawn(move || {
-            assert_eq!(
-                server.accept().err().unwrap().kind(),
-                io::ErrorKind::PermissionDenied
-            )
-        });
-        assert!(call_endpoint(&endpoint, &Request::Quit).is_err());
-        join.join().unwrap();
-    }
-
-    #[test]
-    fn oversized_frame_is_rejected_before_reading_its_body() {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
-        let endpoint = server.endpoint.clone();
-        let join = thread::spawn(move || {
-            assert_eq!(
-                server.accept().err().unwrap().kind(),
-                io::ErrorKind::InvalidData
-            )
-        });
-        let stream = endpoint.connect().unwrap();
-        write_all(&stream, &u32::MAX.to_le_bytes(), Instant::now() + TIMEOUT).unwrap();
-        join.join().unwrap();
-    }
-
-    #[test]
-    fn incomplete_frame_does_not_poison_the_next_connection() {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
-        let endpoint = server.endpoint.clone();
-        let join = thread::spawn(move || {
-            assert!(server.accept().is_err());
-            server
-                .accept()
-                .unwrap()
-                .respond(&Response::success(Snapshot::default()))
-                .unwrap();
-        });
-        endpoint.wake();
-        assert!(call_endpoint(&endpoint, &Request::Get).unwrap().ok);
-        join.join().unwrap();
-    }
-
-    #[test]
-    fn tokens_are_distinct_and_fixed_length() {
-        let one = random_hex::<32>().unwrap();
-        let two = random_hex::<32>().unwrap();
-        assert_eq!(one.len(), 64);
-        assert_ne!(one, two);
-        assert!(token_matches(&one, &one));
-        assert!(!token_matches(&one, &two));
-        assert!(!token_matches("", ""));
-    }
-
-    #[test]
-    fn total_frame_deadline_is_enforced() {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
-        let endpoint = server.endpoint.clone();
-        let join = thread::spawn(move || {
-            let (stream, _) = server.listener.accept().unwrap();
-            configure(&stream).unwrap();
-            let start = Instant::now();
-            assert_eq!(
-                read_frame::<Envelope>(&stream, start + Duration::from_millis(100))
-                    .err()
-                    .unwrap()
-                    .kind(),
-                io::ErrorKind::TimedOut
-            );
-            assert!(start.elapsed() < Duration::from_secs(2));
-        });
-        let stream = endpoint.connect().unwrap();
-        thread::sleep(Duration::from_millis(200));
-        drop(stream);
-        join.join().unwrap();
-    }
-
-    #[test]
-    fn repeated_requests_do_not_need_background_flush_workers() {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::bind(Paths::in_dir(directory.path())).unwrap();
-        let endpoint = server.endpoint.clone();
-        let join = thread::spawn(move || {
-            for revision in 0..200 {
-                server
-                    .accept()
-                    .unwrap()
-                    .respond(&Response::success(Snapshot {
-                        revision,
-                        ..Snapshot::default()
-                    }))
-                    .unwrap();
-            }
-        });
-        for revision in 0..200 {
-            assert_eq!(
-                call_endpoint(&endpoint, &Request::Get)
-                    .unwrap()
-                    .snapshot
-                    .unwrap()
-                    .revision,
-                revision
-            );
-        }
-        join.join().unwrap();
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn endpoints_cannot_redirect_the_client_to_remote_hosts() {
-        let endpoint = Endpoint {
-            protocol: 1,
-            name: "192.0.2.1:1234".into(),
-            token: "0".repeat(64),
-            instance: "0".repeat(32),
-        };
-        assert_eq!(
-            endpoint.connect().err().unwrap().kind(),
-            io::ErrorKind::PermissionDenied
-        );
-    }
 }

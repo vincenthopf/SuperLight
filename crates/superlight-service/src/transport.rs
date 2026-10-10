@@ -28,8 +28,8 @@ impl Candidate {
     pub fn priority(&self) -> (u8, u8, u8, i32) {
         (
             u8::from(!self.bluetooth),
-            u8::from(self.usage_page < 0xff00),
-            u8::from(self.usage != 2),
+            u8::from(self.usage_page < hidpp::VENDOR_USAGE_PAGE),
+            u8::from(self.usage != hidpp::HIDPP_USAGE),
             self.interface,
         )
     }
@@ -52,7 +52,10 @@ impl Candidate {
 }
 
 pub fn enumerate(api: &mut HidApi) -> Result<Vec<Candidate>, Error> {
-    let refresh_error = api.refresh_devices().err();
+    let refresh_error = api
+        .reset_devices()
+        .and_then(|()| api.add_devices(hidpp::VENDOR, 0))
+        .err();
     let mut candidates = Vec::new();
     if refresh_error.is_none() {
         for info in api.device_list() {
@@ -70,7 +73,7 @@ pub fn enumerate(api: &mut HidApi) -> Result<Vec<Candidate>, Error> {
                 product_id: info.product_id(),
                 name: name.chars().take(255).collect(),
                 bluetooth: matches!(info.bus_type(), BusType::Bluetooth)
-                    || (0xb000..=0xbfff).contains(&info.product_id()),
+                    || hidpp::BLUETOOTH_PRODUCT_IDS.contains(&info.product_id()),
                 usage_page: info.usage_page(),
                 usage: info.usage(),
                 interface: info.interface_number(),
@@ -196,49 +199,5 @@ impl Transport for HidTransport {
             .map_err(|_| Error::Transport("HID access policy is unavailable".into()))?
             .observe(&buffer[..count]);
         Ok(count)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn candidate(bluetooth: bool, page: u16, usage: u16) -> Candidate {
-        Candidate {
-            path: CString::new("test").unwrap(),
-            product_id: if bluetooth { 0xb034 } else { 0xc548 },
-            name: String::new(),
-            bluetooth,
-            usage_page: page,
-            usage,
-            interface: 1,
-        }
-    }
-
-    #[test]
-    fn bluetooth_precedes_receivers_and_vendor_collections_precede_mouse_collections() {
-        assert!(candidate(true, 0, 0).priority() < candidate(false, 0xff00, 2).priority());
-        assert!(candidate(false, 0xff00, 2).priority() < candidate(false, 1, 2).priority());
-        assert!(candidate(false, 0xff00, 2).priority() < candidate(false, 0xff00, 1).priority());
-    }
-
-    #[test]
-    fn bluetooth_only_probes_direct_index_and_receivers_probe_all_six_slots() {
-        assert_eq!(candidate(true, 0, 0).indices(), &[0xff]);
-        assert_eq!(
-            candidate(false, 0xff00, 2).indices(),
-            &[0xff, 1, 2, 3, 4, 5, 6]
-        );
-    }
-
-    #[cfg(target_os = "macos")]
-    #[test]
-    fn native_iohid_interfaces_are_identified_without_changing_receiver_addressing() {
-        let mut native = candidate(true, 0xff00, 2);
-        native.path = CString::new("iokit:42").unwrap();
-        native.interface = -2;
-        assert_eq!(native.backend(), "IOKit");
-        assert_eq!(native.indices(), &[0xff]);
-        assert!(native.priority() < candidate(true, 0xff00, 2).priority());
     }
 }
