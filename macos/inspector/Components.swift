@@ -97,9 +97,7 @@ struct MouseDiagram: View {
 
 func formattedAction(_ action: String) -> String {
     guard action.hasPrefix("custom:") else { return action }
-    let keys = action.dropFirst("custom:".count).split(separator: "+")
-    let modifiers = ["cmd": "⌘", "ctrl": "⌃", "alt": "⌥", "shift": "⇧"]
-    return keys.map { modifiers[String($0)] ?? $0.uppercased() }.joined()
+    return KeyShortcut.glyphs(String(action.dropFirst("custom:".count)))
 }
 
 struct ActionEditor: View {
@@ -152,6 +150,7 @@ struct ActionChooser: View {
     @State private var query = ""
     @State private var selection: String?
     @State private var shortcut = ""
+    @State private var typing = false
     @State private var validation = ""
     @FocusState private var focused: Mode?
 
@@ -194,11 +193,18 @@ struct ActionChooser: View {
                 case .shortcut:
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Keyboard shortcut").font(.headline)
-                        TextField("cmd+shift+p", text: $shortcut).textFieldStyle(.roundedBorder).focused($focused, equals: .shortcut)
-                            .accessibilityLabel("Keyboard shortcut")
-                            .onSubmit { if canAssign { assign() } }
-                        Text("Combine cmd, ctrl, alt or shift with a key. For example: cmd+shift+p.")
+                        ShortcutRecorder(shortcut: $shortcut, message: $validation)
+                        Text("Click Record, then press the key combination. Press Escape to cancel recording.")
                             .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        if typing {
+                            TextField("cmd+space", text: $shortcut).textFieldStyle(.roundedBorder).focused($focused, equals: .shortcut)
+                                .accessibilityLabel("Keyboard shortcut as text")
+                                .onSubmit { if canAssign { assign() } }
+                            Text("Use this for shortcuts macOS keeps for itself, such as cmd+space. Combine cmd, ctrl, alt or shift with a key.")
+                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            Button("Type it instead") { typing = true; focused = .shortcut }.buttonStyle(.link)
+                        }
                         Spacer()
                     }
                 }
