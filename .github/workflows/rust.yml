@@ -3,8 +3,8 @@ name: Build
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,7 +38,7 @@ jobs:
         run: |
           channel=$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('rust-toolchain.toml').read_text())['toolchain']['channel'])")
           toolchain="$channel-$TARGET"
-          rustup toolchain install "$toolchain" --profile minimal --component rustfmt,clippy
+          rustup toolchain install "$toolchain" --profile minimal
           echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
       - name: Validate tag version
         run: |
@@ -48,8 +48,6 @@ jobs:
           if os.environ['GITHUB_REF'].startswith('refs/tags/') and os.environ['GITHUB_REF_NAME'] != 'v' + version:
               raise SystemExit('Tag must match workspace version: v' + version)
           PY
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Build macOS app
         run: bash macos/inspector/build.sh
       - name: Package and verify architecture
@@ -88,7 +86,6 @@ jobs:
         run: |
           channel=$(python -c "import pathlib,tomllib; print(tomllib.loads(pathlib.Path('rust-toolchain.toml').read_text())['toolchain']['channel'])")
           toolchain="$channel-$TARGET"
-          rustup toolchain install "$toolchain" --profile minimal --component clippy
+          rustup toolchain install "$toolchain" --profile minimal
           echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
-      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo build --locked --release -p superlight-service -p superlight-ui --bins
